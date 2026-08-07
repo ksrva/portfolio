@@ -2,13 +2,13 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
+import { useRouter } from "next/navigation";
 import * as THREE from "three";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Html } from "@react-three/drei";
 import { Bloom, EffectComposer, Vignette } from "@react-three/postprocessing";
 import { Effect } from "postprocessing";
 import { makeRng } from "@/lib/rand";
-import { INK, LEFT_ROW, PAVEMENT_H, PAVEMENT_W, Pavement, RIGHT_ROW, STREET_HALF, StreetLamps, StreetSnow, Terrace, placeOf, setAccentGlow, HOLD_T, INTRO_FIRST, INTRO_END } from "./buildings";
+import { INK, LEFT_ROW, PAVEMENT_H, PAVEMENT_W, Pavement, RIGHT_ROW, STREET_HALF, StreetLamps, StreetSnow, Terrace, featureHover, placeOf, setAccentGlow, HOLD_T, INTRO_FIRST, INTRO_END } from "./buildings";
 
 /* ═══════════════════════════════════════════════════════════════════
    A night street, built rather than drawn — and then deliberately
@@ -124,7 +124,7 @@ function useCobbles() {
   }, []);
 }
 
-function useToonRamp() {
+export function useToonRamp() {
   return useMemo(() => {
     const steps = new Uint8Array([64, 132, 198, 255]);
     const tex = new THREE.DataTexture(steps, steps.length, 1, THREE.RedFormat);
@@ -265,18 +265,29 @@ function Windows({ data }: { data: Win[] }) {
   );
 }
 
-/* The three ways in: the nearest shopfronts, where they read largest. */
-const DOORS = [
-  { ...placeOf(LEFT_ROW, 0, -1), id: "cafe", label: "Café du Coin — About", colour: "#ffb45c" },
-  { ...placeOf(RIGHT_ROW, 0, 1), id: "no23", label: "Nº 23 — Contact", colour: "#ffcaa0" },
-  { ...placeOf(LEFT_ROW, 2, -1), id: "shop", label: "Librairie — Writing", colour: "#ffcf85" },
-];
+/* The ways in. Just the one built out so far — it points at the building
+   tagged `feature`, so it follows if the generator ever moves it. */
+const DOORS = (() => {
+  const i = LEFT_ROW.findIndex((b) => b.feature);
+  if (i < 0) return [];
+  return [{ ...placeOf(LEFT_ROW, i, -1), id: "experience", label: "Experience" }];
+})();
 
-function Shopfront({ d }: { d: (typeof DOORS)[number] }) {
+function Shopfront({ d, onEnter }: { d: (typeof DOORS)[number]; onEnter: () => void }) {
   const [hovered, setHovered] = useState(false);
+
+  // no lights of our own — the building brightens its own interior
+  useEffect(() => {
+    featureHover.v = hovered ? 1 : 0;
+    return () => {
+      featureHover.v = 0;
+    };
+  }, [hovered]);
+
   return (
-    <group position={[d.x, 2.6, d.z]} rotation={[0, d.rotY, 0]}>
+    <group position={[d.x, 3.2, d.z]} rotation={[0, d.rotY, 0]}>
       <mesh
+        position={[0, -0.4, 0.9]}
         onPointerOver={(e) => {
           e.stopPropagation();
           setHovered(true);
@@ -286,24 +297,15 @@ function Shopfront({ d }: { d: (typeof DOORS)[number] }) {
           setHovered(false);
           document.body.style.cursor = "";
         }}
+        onClick={(e) => {
+          e.stopPropagation();
+          onEnter();
+        }}
       >
-        <planeGeometry args={[d.w, 5]} />
-        <meshBasicMaterial
-          color={d.colour}
-          toneMapped={false}
-          opacity={hovered ? 0.3 : 0}
-          transparent
-          depthWrite={false}
-        />
+        <planeGeometry args={[d.w - 0.8, 5.4]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>
-      <pointLight position={[0, 0, 1.2]} color={d.colour} intensity={hovered ? 26 : 0} distance={12} decay={2} />
-      {hovered && (
-        <Html center distanceFactor={12} position={[0, 3.4, 0]} zIndexRange={[10, 0]}>
-          <div className="whitespace-nowrap rounded-sm border border-brass-500/60 bg-[#120e0a]/90 px-4 py-2 font-mono text-[0.6rem] uppercase tracking-[0.24em] text-glow-300 backdrop-blur-md">
-            {d.label}
-          </div>
-        </Html>
-      )}
+
     </group>
   );
 }
@@ -378,7 +380,7 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
 }
 `;
 
-class PosterEffect extends Effect {
+export class PosterEffect extends Effect {
   constructor(levels = 7, grain = 0.05) {
     super("PosterEffect", POSTER_FRAG, {
       uniforms: new Map<string, THREE.Uniform>([
@@ -389,7 +391,7 @@ class PosterEffect extends Effect {
   }
 }
 
-function Poster({ levels = 7, grain = 0.05 }: { levels?: number; grain?: number }) {
+export function Poster({ levels = 7, grain = 0.05 }: { levels?: number; grain?: number }) {
   const effect = useMemo(() => new PosterEffect(levels, grain), [levels, grain]);
   return <primitive object={effect} dispose={null} />;
 }
@@ -423,14 +425,49 @@ function IntroClock({
   return null;
 }
 
-function Rig() {
+/** Where the camera ends up: just through the door of the feature shop. */
+const DEST = (() => {
+  const b = LEFT_ROW.find((f) => f.feature);
+  const z = b ? -b.x : -30;
+  return {
+    // the left row's facades sit at x = −STREET_HALF, interior is further out
+    pos: new THREE.Vector3(-STREET_HALF - 2.2, 2.7, z),
+    look: new THREE.Vector3(-STREET_HALF - 9, 2.4, z),
+  };
+})();
+
+function Rig({ fly }: { fly: React.RefObject<{ t: number; running: boolean }> }) {
   const { camera, pointer } = useThree();
   const target = useRef(new THREE.Vector3(0, 9, -78));
-  // Mutating the camera inside useFrame is how r3f is meant to be driven —
-  // it runs outside React's render. The immutability lint rule can't see that.
+  const from = useRef(new THREE.Vector3());
+  const fromLook = useRef(new THREE.Vector3());
+  const look = useRef(new THREE.Vector3());
+  const captured = useRef(false);
+
   /* eslint-disable react-hooks/immutability */
   useFrame((_, dt) => {
     const k = 1 - Math.pow(0.001, dt);
+
+    if (fly.current.running) {
+      if (!captured.current) {
+        from.current.copy(camera.position);
+        fromLook.current.copy(target.current);
+        captured.current = true;
+      }
+      fly.current.t = Math.min(1, fly.current.t + dt / 1.45);
+      const t = fly.current.t;
+      // slow out of the street, then accelerate through the doorway
+      const e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+      camera.position.lerpVectors(from.current, DEST.pos, e);
+      look.current.lerpVectors(fromLook.current, DEST.look, e);
+      camera.lookAt(look.current);
+      // widening the lens as it arrives sells the acceleration
+      const cam = camera as THREE.PerspectiveCamera;
+      cam.fov = 54 + e * 26;
+      cam.updateProjectionMatrix();
+      return;
+    }
+
     camera.position.x += (pointer.x * 2.2 - camera.position.x) * k;
     camera.position.z = -16;
     camera.position.y += (6.5 + pointer.y * 1.1 - camera.position.y) * k;
@@ -444,10 +481,14 @@ function Scene({
   clock,
   prompt,
   onPrompt,
+  fly,
+  onEnter,
 }: {
   clock: React.RefObject<{ t: number; ceiling: number }>;
   prompt: boolean;
   onPrompt: () => void;
+  fly: React.RefObject<{ t: number; running: boolean }>;
+  onEnter: () => void;
 }) {
   const ambient = useRef<THREE.AmbientLight>(null);
   const moon = useRef<THREE.DirectionalLight>(null);
@@ -480,7 +521,7 @@ function Scene({
       </group>
 
       {DOORS.map((d) => (
-        <Shopfront key={d.id} d={d} />
+        <Shopfront key={d.id} d={d} onEnter={onEnter} />
       ))}
 
       {/* Matte snow. No reflector, no metalness — trodden slush, not glass. */}
@@ -490,7 +531,7 @@ function Scene({
       </mesh>
 
       <Snow />
-      <Rig />
+      <Rig fly={fly} />
       <IntroClock clock={clock} ambient={ambient} moon={moon} />
 
       <EffectComposer>
@@ -502,14 +543,34 @@ function Scene({
   );
 }
 
+/* Whether the street has already been woken this page-load.
+
+   Module scope rather than sessionStorage: this survives client-side
+   navigation (the bundle isn't re-evaluated when you go to a shop and come
+   back) but dies on a real reload — which is precisely the distinction we
+   want. sessionStorage survives refreshes too, so it skipped the intro
+   forever once you'd seen it. */
+let streetLit = false;
+
 const GREETING = "Hello, I'm Kam";
 
 export default function StreetScene() {
   // ceiling gates the clock: 0 while the name types, HOLD_T once the first
   // lamp may strike, then unbounded once the visitor clicks
-  const clock = useRef({ t: 0, ceiling: 0 });
-  const [typed, setTyped] = useState(0);
-  const [phase, setPhase] = useState<"typing" | "waiting" | "running" | "done">("typing");
+  // The intro is a first-arrival thing. Coming back from a shop should drop
+  // you onto the street as you left it, already lit.
+  const [alreadyLit] = useState(() => streetLit);
+  const clock = useRef({
+    t: alreadyLit ? INTRO_END + 1 : 0,
+    ceiling: alreadyLit ? Number.POSITIVE_INFINITY : 0,
+  });
+  const fly = useRef({ t: 0, running: false });
+  const router = useRouter();
+  const [entering, setEntering] = useState(false);
+  const [typed, setTyped] = useState(alreadyLit ? GREETING.length : 0);
+  const [phase, setPhase] = useState<"typing" | "waiting" | "running" | "done">(
+    alreadyLit ? "done" : "typing",
+  );
 
   useEffect(() => {
     if (typed >= GREETING.length) return;
@@ -519,22 +580,32 @@ export default function StreetScene() {
 
   // once the name is written, let one lamp — and only one — come on
   useEffect(() => {
-    if (typed < GREETING.length) return;
+    if (alreadyLit || typed < GREETING.length) return;
     const id = setTimeout(() => {
       clock.current.ceiling = HOLD_T;
       setPhase("waiting");
     }, 550);
     return () => clearTimeout(id);
-  }, [typed]);
+  }, [typed, alreadyLit]);
 
   const start = () => {
     if (phase !== "waiting") return;
     clock.current.ceiling = Number.POSITIVE_INFINITY;
+    streetLit = true;
     setPhase("running");
     setTimeout(() => setPhase("done"), (INTRO_END - HOLD_T) * 1000 + 400);
   };
 
   const centred = phase === "typing" || phase === "waiting";
+
+  // fly through the door, then swap routes while the frame is full of light
+  const enterShop = () => {
+    if (entering) return;
+    setEntering(true);
+    fly.current.running = true;
+    router.prefetch("/experience");
+    setTimeout(() => router.push("/experience"), 1500);
+  };
 
   return (
     <div className="relative h-[100svh] w-full bg-[#05070c]">
@@ -543,8 +614,26 @@ export default function StreetScene() {
         gl={{ antialias: true, powerPreference: "high-performance", toneMappingExposure: 0.45 }}
         camera={{ position: [0, 6.5, -16], fov: 54, near: 0.1, far: 300 }}
       >
-        <Scene clock={clock} prompt={phase === "waiting"} onPrompt={start} />
+        <Scene clock={clock} prompt={phase === "waiting"} onPrompt={start} fly={fly} onEnter={enterShop} />
       </Canvas>
+
+      {alreadyLit && (
+        <motion.div
+          className="pointer-events-none absolute inset-0 z-40 bg-[#05070c]"
+          initial={{ opacity: 1 }}
+          animate={{ opacity: 0 }}
+          transition={{ duration: 0.75, ease: "easeOut" }}
+        />
+      )}
+
+      {/* Darkness closing over the frame — the route swaps behind it */}
+      <motion.div
+        className="pointer-events-none absolute inset-0 z-40"
+        style={{ background: "#070906" }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: entering ? 1 : 0 }}
+        transition={{ duration: entering ? 0.85 : 0, delay: entering ? 0.62 : 0, ease: "easeIn" }}
+      />
 
       {/* The greeting: centred while it types, gone once the lights run */}
       <AnimatePresence>

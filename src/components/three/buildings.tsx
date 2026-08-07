@@ -39,6 +39,10 @@ export const ACCENT = {
   curtain: new THREE.MeshBasicMaterial({ color: 0x000000, toneMapped: false }),
   dormer: new THREE.MeshBasicMaterial({ color: 0x000000, toneMapped: false }),
 };
+/** Set by the hotspot, read by the feature building. 0 = idle, 1 = hovered. */
+export const featureHover = { v: 0 };
+const WARM_LIFT = new THREE.Color("#ffa040");
+
 export function setAccentGlow(f: number) {
   ACCENT.gold.color.copy(GOLD_FULL).multiplyScalar(f);
   ACCENT.berry.color.copy(BERRY_FULL).multiplyScalar(f);
@@ -66,6 +70,8 @@ export type Facade = {
   wall: "brick" | "stone" | "stucco";
   /** not every shop has an awning */
   awning: boolean;
+  /** the one built out in full — Experience */
+  feature?: boolean;
   shop: "shopfront" | "door" | "plain";
   accent?: string;
   seed: number;
@@ -705,6 +711,242 @@ function Roof({ b, ramp }: { b: Facade; ramp: THREE.Texture }) {
 /*  Ground floor                                                      */
 /* ────────────────────────────────────────────────────────────────── */
 
+/* ────────────────────────────────────────────────────────────────── */
+/*  The Experience shopfront — the one built out in full               */
+/* ────────────────────────────────────────────────────────────────── */
+
+/** One canvas per letter, so they can be revealed individually. Georgia
+    rather than the site's webfont: canvas needs a family the browser already
+    has registered, and next/font mangles the family name. */
+export function useSignLetters(word: string) {
+  return useMemo(() => {
+    const size = 128;
+    return [...word].map((ch) => {
+      const cv = document.createElement("canvas");
+      cv.width = size;
+      cv.height = size;
+      const g = cv.getContext("2d")!;
+      g.font = `600 ${size * 0.7}px Georgia, "Times New Roman", serif`;
+      const adv = g.measureText(ch).width / size;
+      g.textAlign = "center";
+      g.textBaseline = "middle";
+      g.fillStyle = "#f2d9a0";
+      g.fillText(ch, size / 2, size / 2 + size * 0.03);
+      const tex = new THREE.CanvasTexture(cv);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 8;
+      return { tex, adv: Math.max(0.24, adv) };
+    });
+  }, [word]);
+}
+
+function ShopSign({ b, word, y }: { b: Facade; word: string; y: number }) {
+  const letters = useSignLetters(word);
+  const mats = useRef<(THREE.MeshBasicMaterial | null)[]>([]);
+  const ease = useRef(0);
+
+  const H = 0.62;
+  const gap = 0.15;
+  const xs = useMemo(() => {
+    const w = letters.map((l) => l.adv * H);
+    const total = w.reduce((a, c) => a + c, 0) + gap * (letters.length - 1);
+    // prefix sums rather than a running cursor — n is 11, and it keeps the
+    // whole thing free of reassignment
+    return w.map((wi, i) => {
+      const before = w.slice(0, i).reduce((a, c) => a + c, 0) + gap * i;
+      return -total / 2 + before + wi / 2;
+    });
+  }, [letters]);
+
+  useFrame((_, dt) => {
+    ease.current += (featureHover.v - ease.current) * Math.min(1, dt * 7);
+    const e = ease.current;
+    mats.current.forEach((m, i) => {
+      if (!m) return;
+      // one letter at a time, left to right
+      const t = e * (letters.length + 3) - i;
+      m.opacity = t <= 0 ? 0 : t >= 1 ? 1 : t;
+    });
+  });
+
+  return (
+    <group position={[b.x, y, 0.72]}>
+      {letters.map((l, i) => (
+        <mesh key={i} position={[xs[i], 0, 0]}>
+          <planeGeometry args={[H, H]} />
+          <meshBasicMaterial
+            ref={(m) => {
+              mats.current[i] = m;
+            }}
+            map={l.tex}
+            transparent
+            opacity={0}
+            toneMapped={false}
+            depthWrite={false}
+          />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+function FeatureShopfront({
+  b,
+  ramp,
+  hold,
+  holdLight,
+}: {
+  b: Facade;
+  ramp: THREE.Texture;
+  hold: (m: THREE.MeshBasicMaterial | null, i: number) => void;
+  holdLight: (l: THREE.PointLight | null, i: number, full: number) => void;
+}) {
+  const shelf = useBookshelf();
+  const glassW = b.w - 1.5;
+  const sill = 0.85; // stallriser height
+  const head = GROUND_H - 0.5;
+  const doorW = 1.9;
+
+  // small panes, Georgian shopfront proportions
+  const bays = 7;
+  const tiers = 5;
+  const bayW = glassW / bays;
+  const tierH = (head - sill) / tiers;
+
+  return (
+    <group>
+      {/* reveal */}
+      <mesh position={[b.x, (head + sill) / 2, 0.06]}>
+        <boxGeometry args={[glassW + 0.7, head - sill + 0.7, 0.3]} />
+        <meshToonMaterial color="#241206" gradientMap={ramp} />
+      </mesh>
+
+      {/* the shop, seen through the glass */}
+      <mesh position={[b.x, (head + sill) / 2, 0.22]}>
+        <planeGeometry args={[glassW, head - sill]} />
+        <meshBasicMaterial ref={(m) => hold(m, 0)} map={shelf} toneMapped={false} />
+      </mesh>
+
+      {/* a doorway set into the middle, darker and deeper */}
+      <mesh position={[b.x, (head + sill) / 2 - 0.2, 0.2]}>
+        <planeGeometry args={[doorW, head - 0.2]} />
+        <meshBasicMaterial ref={(m) => hold(m, 1)} color="#6b3a18" toneMapped={false} />
+      </mesh>
+
+      {/* glazing bars */}
+      <group>
+        {Array.from({ length: bays + 1 }, (_, i) => (
+          <mesh key={`v${i}`} position={[b.x - glassW / 2 + i * bayW, (head + sill) / 2, 0.3]}>
+            <boxGeometry args={[0.075, head - sill, 0.13]} />
+            <meshToonMaterial color="#1c0d05" gradientMap={ramp} />
+          </mesh>
+        ))}
+        {Array.from({ length: tiers + 1 }, (_, i) => (
+          <mesh key={`h${i}`} position={[b.x, sill + i * tierH, 0.3]}>
+            <boxGeometry args={[glassW + 0.12, 0.075, 0.13]} />
+            <meshToonMaterial color="#1c0d05" gradientMap={ramp} />
+          </mesh>
+        ))}
+        {/* heavier posts either side of the door */}
+        {[-doorW / 2, doorW / 2].map((dx) => (
+          <mesh key={dx} position={[b.x + dx, (head + sill) / 2 - 0.2, 0.33]}>
+            <boxGeometry args={[0.2, head, 0.2]} />
+            <meshToonMaterial color="#1c0d05" gradientMap={ramp} />
+          </mesh>
+        ))}
+      </group>
+
+      {/* stallriser: panelled base below the glass */}
+      <mesh position={[b.x, sill / 2, 0.28]}>
+        <boxGeometry args={[glassW + 0.7, sill, 0.34]} />
+        <meshToonMaterial color="#33261a" gradientMap={ramp} />
+        <Outlines thickness={0.03} color={INK} />
+      </mesh>
+      {Array.from({ length: 5 }, (_, i) => (
+        <mesh key={i} position={[b.x - glassW / 2 + (i + 0.5) * (glassW / 5), sill / 2, 0.46]}>
+          <boxGeometry args={[glassW / 5 - 0.35, sill - 0.34, 0.05]} />
+          <meshToonMaterial color="#483725" gradientMap={ramp} />
+        </mesh>
+      ))}
+
+      {/* the sign board the lettering sits on */}
+      <mesh position={[b.x, head + 0.62, 0.4]}>
+        <boxGeometry args={[b.w - 0.5, 1.05, 0.5]} />
+        <meshToonMaterial color="#241608" gradientMap={ramp} />
+        <Outlines thickness={0.03} color={INK} />
+      </mesh>
+      <mesh position={[b.x, head + 0.62, 0.67]}>
+        <planeGeometry args={[b.w - 0.9, 0.78]} />
+        <meshToonMaterial color="#3a2410" gradientMap={ramp} />
+      </mesh>
+      <ShopSign b={b} word="EXPERIENCE" y={head + 0.62} />
+
+      {/* cornice above the sign */}
+      <mesh position={[b.x, head + 1.34, 0.34]}>
+        <boxGeometry args={[b.w - 0.25, 0.42, 0.62]} />
+        <meshToonMaterial color="#4a3623" gradientMap={ramp} />
+        <Outlines thickness={0.03} color={INK} />
+      </mesh>
+      <mesh position={[b.x, head + 1.6, 0.34]}>
+        <boxGeometry args={[b.w - 0.15, 0.14, 0.7]} />
+        <meshToonMaterial color={SNOW} gradientMap={ramp} />
+      </mesh>
+
+      {/* garland swagged across the head of the window */}
+      {Array.from({ length: 30 }, (_, i) => {
+        const t = i / 29;
+        const sag = Math.sin(t * Math.PI) * 0.42;
+        const r = 0.13 + Math.sin(t * Math.PI) * 0.08;
+        return (
+          <mesh key={`g${i}`} position={[b.x - glassW / 2 + t * glassW, head - 0.28 - sag, 0.5]}>
+            <sphereGeometry args={[r, 7, 6]} />
+            <meshToonMaterial color={i % 5 === 0 ? GREEN_HI : GREEN} gradientMap={ramp} />
+          </mesh>
+        );
+      })}
+      {Array.from({ length: 9 }, (_, i) => {
+        const t = (i + 0.5) / 9;
+        const sag = Math.sin(t * Math.PI) * 0.42;
+        return (
+          <mesh key={`b${i}`} position={[b.x - glassW / 2 + t * glassW, head - 0.39 - sag, 0.62]}>
+            <sphereGeometry args={[0.075, 6, 5]} />
+            <primitive object={i % 2 ? ACCENT.gold : ACCENT.berry} attach="material" />
+          </mesh>
+        );
+      })}
+
+      {/* a wreath hung in the glass either side of the door */}
+      {[-1, 1].map((sd) => (
+        <group key={sd} position={[b.x + sd * (glassW * 0.28), sill + tierH * 3.1, 0.4]}>
+          <mesh>
+            <torusGeometry args={[0.52, 0.15, 7, 16]} />
+            <meshToonMaterial color={GREEN} gradientMap={ramp} />
+          </mesh>
+          {[0, 72, 144, 216, 288].map((a) => (
+            <mesh
+              key={a}
+              position={[Math.cos((a * Math.PI) / 180) * 0.52, Math.sin((a * Math.PI) / 180) * 0.52, 0.1]}
+            >
+              <sphereGeometry args={[0.075, 6, 5]} />
+              <primitive object={ACCENT.berry} attach="material" />
+            </mesh>
+          ))}
+        </group>
+      ))}
+
+      {/* the light inside it */}
+      <pointLight
+        ref={(l) => holdLight(l, 0, 16)}
+        position={[b.x, GROUND_H - 2, 1.4]}
+        color="#ff9a38"
+        intensity={0}
+        distance={22}
+        decay={1.7}
+      />
+    </group>
+  );
+}
+
 function GroundFloor({
   b,
   ramp,
@@ -719,6 +961,7 @@ function GroundFloor({
   const lights = useRef<(THREE.PointLight | null)[]>([]);
   const lightMax = useRef<number[]>([]);
   const settled = useRef(false);
+  const ease = useRef(0);
   const at = litAt(Math.abs(Math.abs(b.x) - Math.abs(CAM_Z)), 0.15);
 
   const holdLight = (l: THREE.PointLight | null, i: number, full: number) => {
@@ -737,19 +980,41 @@ function GroundFloor({
     }
   };
 
-  useFrame(() => {
-    if (!clock?.current || settled.current) return;
+  useFrame((_, dt) => {
+    if (!clock?.current) return;
+    if (settled.current && !b.feature) return;
+
     const k = (clock.current.t - at) / INTRO_WARMUP;
     const f = k >= 1 ? 1 : k <= 0 ? 0 : k * (0.5 + 0.5 * Math.abs(Math.sin(k * 24)));
+
+    // The shop you can walk into brightens from within when you point at it —
+    // its own lamps turned up, rather than a light shone at the facade.
+    if (b.feature) {
+      const target = featureHover.v;
+      ease.current += (target - ease.current) * Math.min(1, dt * 5);
+    }
+    const e2 = ease.current;
+    const boost = b.feature ? 1 + e2 * 1.5 : 1;
+
     glow.current.forEach((m, i) => {
-      if (m && base.current[i]) m.color.copy(base.current[i]).multiplyScalar(f);
+      if (m && base.current[i]) {
+        m.color.copy(base.current[i]).multiplyScalar(f * boost);
+        // push it toward amber as it lifts, so it reads as warmer light and
+        // not just more of the same
+        if (b.feature && e2 > 0.001) m.color.lerp(WARM_LIFT, e2 * 0.28);
+      }
     });
     lights.current.forEach((l, i) => {
-      if (l) l.intensity = (lightMax.current[i] ?? 0) * f;
+      if (l) l.intensity = (lightMax.current[i] ?? 0) * f * (b.feature ? 1 + ease.current * 4.5 : 1);
     });
+
     if (k >= 1) settled.current = true;
   });
 
+
+  if (b.feature) {
+    return <FeatureShopfront b={b} ramp={ramp} hold={hold} holdLight={holdLight} />;
+  }
 
   if (b.shop === "door") {
     return (
@@ -961,7 +1226,14 @@ export function Terrace({
 
 export const STREET_HALF = 10;
 
-function makeRow(seed: number, count: number, sign: 1 | -1): Facade[] {
+function makeRow(
+  seed: number,
+  count: number,
+  sign: 1 | -1,
+  featureAfter?: number,
+  /** how many eligible buildings to walk past first */
+  featureSkip = 0,
+): Facade[] {
   const rng = makeRng(seed);
   // Three families only: deep dark red, deep dark blue, deep dark brown.
   // Two shades of each so neighbours differ without introducing a new hue.
@@ -980,13 +1252,22 @@ function makeRow(seed: number, count: number, sign: 1 | -1): Facade[] {
   const walls: Facade["wall"][] = ["brick", "brick", "stone", "stucco"];
   const out: Facade[] = [];
   let x = 4;
+  let eligible = 0;
   for (let i = 0; i < count; i++) {
     const w = rng.range(8.5, 13);
     const [colour, trim] = rng.pick(palettes);
     // two storeys to six, which is a genuinely ragged roofline
     const floors = rng.int(2, 6);
+    const px = x + w / 2;
+    // Walk down the row until we're past the threshold, then skip a further
+    // `featureSkip` buildings — the very first one past it sits right on the
+    // edge of frame and gets clipped.
+    const past = featureAfter !== undefined && px > featureAfter;
+    if (past) eligible += 1;
+    const isFeature = past && !out.some((b) => b.feature) && eligible > featureSkip;
     out.push({
-      id: `${seed}-${i}`,
+      feature: isFeature,
+      id: isFeature ? "experience" : `${seed}-${i}`,
       // sign flips the whole row for the far side of the street: with a
       // −90° group rotation, local +x maps to world +z, which would march
       // the row toward the camera instead of away from it.
@@ -1000,8 +1281,8 @@ function makeRow(seed: number, count: number, sign: 1 | -1): Facade[] {
       roof: rng.pick(roofs),
       win: rng.pick(wins),
       wall: rng.pick(walls),
-      awning: rng.chance(0.62),
-      shop: i < 4 ? "shopfront" : rng.chance(0.4) ? "shopfront" : "plain",
+      awning: isFeature ? false : rng.chance(0.62),
+      shop: isFeature ? "shopfront" : i < 4 ? "shopfront" : rng.chance(0.4) ? "shopfront" : "plain",
       accent: rng.pick(["#8f2f26", "#1f4a45", "#2f5a52", "#6b4a2a"]),
       seed: seed * 100 + i,
     });
@@ -1011,7 +1292,7 @@ function makeRow(seed: number, count: number, sign: 1 | -1): Facade[] {
 }
 
 /* Long enough that the far end is pure fog rather than a visible stop. */
-export const LEFT_ROW = makeRow(717, 16, 1);
+export const LEFT_ROW = makeRow(717, 16, 1, 20, 1);
 export const RIGHT_ROW = makeRow(919, 16, -1);
 
 /** Where a row building actually ends up in world space. */
@@ -1049,7 +1330,7 @@ export const litAt = (dist: number, jitter = 0) =>
   INTRO_FIRST + dist * INTRO_PER_UNIT + jitter;
 
 /** Letters set along an arc, arriving one at a time. */
-function CircleLabel({
+export function CircleLabel({
   text,
   radius,
   arc = 150,
@@ -1218,7 +1499,7 @@ function LampPost({
   );
 }
 
-function useGlowDecal() {
+export function useGlowDecal() {
   return useMemo(() => {
     const size = 256;
     const cv = document.createElement("canvas");
@@ -1335,6 +1616,76 @@ export function Pavement({
 /*  cobbles where it hasn't been walked off, and banks pushed up       */
 /*  against the kerbs where it has.                                    */
 /* ────────────────────────────────────────────────────────────────── */
+
+/** A wall of books. Texture rather than modelled objects: at this scale
+    individual props read as pictograms, a repeating shelf pattern reads as
+    depth. */
+export function useBookshelf() {
+  return useMemo(() => {
+    const w = 512;
+    const h = 512;
+    const cv = document.createElement("canvas");
+    cv.width = w;
+    cv.height = h;
+    const g = cv.getContext("2d")!;
+    const rng = makeRng(9042);
+
+    g.fillStyle = "#2e1a0c";
+    g.fillRect(0, 0, w, h);
+
+    const spines = ["#b4472f", "#8d5a22", "#a8742c", "#6f3b23", "#8f6f3a", "#5f4a22", "#a2542c", "#c2894a", "#7a3a2a"];
+    const shelves = 6;
+    const sh = h / shelves;
+
+    for (let r = 0; r < shelves; r++) {
+      const top = r * sh;
+      // books
+      let x = rng.range(2, 8);
+      while (x < w - 6) {
+        const bw = rng.range(7, 21);
+        const bh = sh * rng.range(0.62, 0.88);
+        const lean = rng.chance(0.06);
+        g.save();
+        g.translate(x, top + sh - 10);
+        if (lean) g.rotate(rng.range(-0.16, 0.16));
+        g.fillStyle = rng.pick(spines);
+        g.fillRect(0, -bh, bw, bh);
+        // a lighter edge and a band of gilt on some
+        g.fillStyle = "rgba(255,236,200,0.22)";
+        g.fillRect(0, -bh, 1.6, bh);
+        if (rng.chance(0.4)) {
+          g.fillStyle = "rgba(236,196,120,0.55)";
+          g.fillRect(0, -bh * rng.range(0.6, 0.8), bw, 1.8);
+        }
+        g.restore();
+        x += bw + rng.range(0.6, 2.4);
+      }
+      // the shelf board itself
+      g.fillStyle = "#5b3a1e";
+      g.fillRect(0, top + sh - 10, w, 9);
+      g.fillStyle = "rgba(255,214,150,0.3)";
+      g.fillRect(0, top + sh - 10, w, 2);
+    }
+
+    // uprights, and a warm pool of lamplight over the whole thing
+    for (const ux of [0, w / 2 - 5, w - 9]) {
+      g.fillStyle = "#4a2d16";
+      g.fillRect(ux, 0, 9, h);
+    }
+    const glow = g.createRadialGradient(w * 0.5, h * 0.35, 0, w * 0.5, h * 0.35, w * 0.7);
+    glow.addColorStop(0, "rgba(255,198,120,0.4)");
+    glow.addColorStop(1, "rgba(255,150,60,0)");
+    g.fillStyle = glow;
+    g.fillRect(0, 0, w, h);
+
+    const tex = new THREE.CanvasTexture(cv);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.ClampToEdgeWrapping;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 8;
+    return tex;
+  }, []);
+}
 
 function useSnowPatch() {
   return useMemo(() => {

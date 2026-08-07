@@ -7,19 +7,19 @@
  */
 
 export const site = {
-  name: "Kamakshi",
-  fullName: "Kamakshi S.",
+  name: "Kam",
+  fullName: "Kamakshi Sarvananthan",
   role: "Software · Data · Machine Learning",
   location: "Waterloo, Ontario",
-  email: "kamakshis230@gmail.com",
+  email: "k3sarvan@uwaterloo.ca",
   tagline: "I build systems that turn messy data into something you can trust.",
   /** Shown under the name in the hero. Keep it to ~2 short lines. */
   heroLine:
     "Engineer and researcher working at the seam between data infrastructure and machine learning — record linkage, evaluation systems, and the unglamorous plumbing that makes models honest.",
   socials: [
-    { label: "GitHub", href: "https://github.com/", handle: "@kamakshi" },
-    { label: "LinkedIn", href: "https://linkedin.com/in/", handle: "in/kamakshi" },
-    { label: "Email", href: "mailto:kamakshis230@gmail.com", handle: "kamakshis230@gmail.com" },
+    { label: "GitHub", href: "https://github.com/ksrva", handle: "@ksrva" },
+    { label: "LinkedIn", href: "https://www.linkedin.com/in/ksarvananthan/", handle: "in/ksarvananthan" },
+    { label: "Email", href: "mailto:k3sarvan@uwaterloo.ca", handle: "k3sarvan@uwaterloo.ca" },
   ],
 } as const;
 
@@ -60,30 +60,58 @@ export type Job = {
 
 export const work: readonly Job[] = [
   {
-    org: "Company Name",
-    role: "Software Engineering Intern",
+    org: "Triple",
+    role: "Software Engineer Intern",
     period: "May — Aug 2026",
     location: "Toronto, ON",
     blurb:
-      "Replace this with what you actually did — one sentence on the problem, one on what you built, one on the result with a number in it if you have one.",
-    stack: ["Python", "Postgres", "Airflow"],
+      "Architected an end-to-end Raiser's Edge NXT integration — OAuth 2.0 onboarding, two-way record sync, and an embedded add-in surfacing matches inside the CRM — replacing engineer-assisted setup. Built a probabilistic linkage pipeline over DuckDB resolving 66% of matches at 95% precision across 100K+ record datasets, and the Stripe payments architecture behind it with a Postgres credit ledger.",
+    stack: ["Python", "DuckDB", "Postgres", "Stripe", "Splink"],
   },
   {
-    org: "Research Group / Lab",
-    role: "Undergraduate Research Assistant",
-    period: "Jan — Apr 2026",
+    org: "CPP Investments",
+    role: "Software Engineer Intern, Cloud Infrastructure",
+    period: "Sep — Dec 2025",
+    location: "Toronto, ON",
+    blurb:
+      "Built an MVP for AI-powered incident alerting on AWS Lambda and CloudWatch, pairing real-time alerts with LLM summarisation to draft incident reports for on-call engineers. Shipped an observability pipeline into QuickSight for equity-trading refresh performance, and prototyped an AIOps agent for root-cause analysis across distributed logs.",
+    stack: ["AWS Lambda", "CloudWatch", "QuickSight", "Python", "LLMs"],
+  },
+  {
+    org: "Theory Ventures",
+    role: "Data Engineer Intern, Signals Intelligence",
+    period: "Jan — Apr 2025",
+    location: "San Francisco, CA",
+    blurb:
+      "Built LLM-powered enrichment and summarisation pipelines exposed through a REST API over PostgreSQL, automating most of the manual tagging in market-intelligence work. Re-architected a legacy microservice from VMs onto Cloud Run with CI/CD in GitHub Actions, cutting deployment time 60%.",
+    stack: ["Python", "PostgreSQL", "GCP", "Hasura", "GraphQL"],
+  },
+  {
+    org: "Litens Automotive",
+    role: "DevOps Engineer Intern, Business Systems",
+    period: "May — Aug 2024",
+    location: "Woodbridge, ON",
+    blurb:
+      "Led a refactor of a legacy database schema and the SQL behind compliance reporting, improving query performance 15%. Built an asset-forecasting dashboard that cut licence over-allocation 20% and extended forecast visibility from one week to over three months.",
+    stack: ["Python", "SQL", "Power BI", "Selenium"],
+  },
+  {
+    org: "Canadian STEM & AI Academy",
+    role: "Software Development Intern",
+    period: "Sep 2022 — Jan 2023",
+    location: "Markham, ON",
+    blurb:
+      "Optimised React component rendering with memoisation, cutting re-renders and improving performance 15%. Integrated API endpoints with Axios, improving data-retrieval efficiency 30% and reducing load times.",
+    stack: ["React", "JavaScript", "Axios"],
+  },
+  {
+    org: "WatStreet",
+    role: "Project Lead, Quant Finance",
+    period: "2025 — present",
     location: "Waterloo, ON",
     blurb:
-      "Probabilistic record linkage across heterogeneous administrative datasets; built the evaluation harness the rest of the team used to compare matchers.",
-    stack: ["Python", "scikit-learn", "DuckDB"],
-  },
-  {
-    org: "Earlier Role",
-    role: "Title",
-    period: "2025",
-    location: "Remote",
-    blurb: "One line. Keep these tight — the reader is scanning, not studying.",
-    stack: ["TypeScript", "React"],
+      "Leading an extension to the HAR-RV volatility model that adds order-sensitive encodings to capture directional effects in realised volatility, resolving symmetry limitations in the traditional formulation. Built a modular decomposition framework using dynamic interval averaging and regime-dependent parameterisation.",
+    stack: ["Python", "NumPy", "Pandas"],
   },
 ] as const;
 
