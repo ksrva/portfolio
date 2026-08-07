@@ -1,26 +1,265 @@
 @import "tailwindcss";
 
+@theme {
+  /* ── Night, from the sky down to the deepest shadow ───────────── */
+  --color-night-950: #04121a;
+  --color-night-900: #071c26;
+  --color-night-800: #0b2833;
+  --color-night-700: #10333f;
+  --color-night-600: #17475a;
+  --color-night-500: #1d5f72;
+  --color-night-400: #2b7f92;
+
+  /* ── Lamplight, window glow, embers ───────────────────────────── */
+  --color-glow-300: #ffe7bb;
+  --color-glow-400: #ffd28f;
+  --color-glow-500: #f5b95c;
+  --color-glow-600: #e59b3d;
+  --color-ember-500: #e2703a;
+  --color-ember-600: #c4542a;
+
+  /* ── The rug ──────────────────────────────────────────────────── */
+  --color-rug-red: #9b3028;
+  --color-rug-deep: #5e1a18;
+  --color-rug-rose: #c2564a;
+  --color-rug-cream: #e6d4ae;
+  --color-rug-ink: #22282e;
+
+  /* ── Wood, brass, paper ───────────────────────────────────────── */
+  --color-wood-900: #241408;
+  --color-wood-700: #3a2317;
+  --color-wood-500: #5b3a24;
+  --color-brass-500: #c9a227;
+  --color-paper: #f4ecdc;
+  --color-moon: #f7f0da;
+
+  --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
+  --font-masthead: var(--font-masthead-face), "Didot", "Times New Roman", ui-serif, serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-mono), ui-monospace, monospace;
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: dark;
+  --edge: color-mix(in oklab, var(--color-glow-500) 16%, transparent);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  background: var(--color-night-950);
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-night-950);
+  color: color-mix(in oklab, var(--color-paper) 82%, transparent);
+  font-family: var(--font-sans);
+  font-synthesis-weight: none;
+  text-rendering: optimizeLegibility;
+  overflow-x: clip;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--color-glow-500) 40%, transparent);
+  color: var(--color-paper);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-glow-500);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+/* SVG hotspots: the UA ring wins on shapes in some engines, and a stray blue
+   rectangle over the facade is very loud. Draw our own instead. */
+svg [role="link"]:focus-visible {
+  outline: none;
+  stroke: var(--color-glow-300);
+  stroke-width: 4;
+  paint-order: stroke;
+}
+
+/* Lenis */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+
+/* ── Grain: one tiny inline SVG, tiled. Sits above everything, ───
+      ignores pointer events, and stops large flat fills from
+      looking like plastic. ─────────────────────────────────────── */
+.grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 40;
+  opacity: 0.32;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+}
+
+/* ── Animations ───────────────────────────────────────────────── */
+@keyframes flicker {
+  0%,
+  100% {
+    opacity: var(--lit, 0.9);
+  }
+  42% {
+    opacity: var(--lit, 0.9);
+  }
+  46% {
+    opacity: calc(var(--lit, 0.9) * 0.45);
+  }
+  49% {
+    opacity: var(--lit, 0.9);
+  }
+  62% {
+    opacity: calc(var(--lit, 0.9) * 0.7);
+  }
+  66% {
+    opacity: var(--lit, 0.9);
+  }
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Snow. Translate values are SVG user units, which is why this is in px. */
+@keyframes snowfall {
+  0% {
+    transform: translate(0, -30px);
+    opacity: 0;
+  }
+  8% {
+    opacity: var(--o, 0.7);
+  }
+  88% {
+    opacity: var(--o, 0.7);
+  }
+  100% {
+    transform: translate(var(--dx, 24px), 720px);
+    opacity: 0;
+  }
+}
+
+@keyframes steam {
+  0% {
+    opacity: 0;
+    transform: translateY(0) scaleX(1);
+  }
+  25% {
+    opacity: 0.55;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-26px) scaleX(1.9);
+  }
+}
+
+@keyframes sweep {
+  to {
+    background-position: 200% center;
+  }
+}
+
+.anim-flicker {
+  animation: flicker var(--dur, 9s) steps(1, end) infinite;
+}
+.anim-breathe {
+  animation: breathe var(--dur, 6s) ease-in-out infinite;
+}
+@keyframes snowfall-street {
+  0% {
+    transform: translate(0, -40px);
+    opacity: 0;
+  }
+  6% {
+    opacity: var(--o, 0.7);
+  }
+  90% {
+    opacity: var(--o, 0.7);
+  }
+  100% {
+    transform: translate(var(--dx, 24px), 980px);
+    opacity: 0;
+  }
+}
+
+@keyframes rainfall {
+  0% {
+    transform: translate(0, 0);
+    opacity: 0;
+  }
+  8% {
+    opacity: var(--o, 0.25);
+  }
+  92% {
+    opacity: var(--o, 0.25);
+  }
+  100% {
+    transform: translate(-90px, 1180px);
+    opacity: 0;
+  }
+}
+
+.anim-rain {
+  animation: rainfall var(--dur, 1.2s) linear infinite;
+  will-change: transform;
+}
+
+.anim-snow {
+  animation: snowfall var(--dur, 16s) linear infinite;
+  will-change: transform;
+}
+.anim-snow-street {
+  animation: snowfall-street var(--dur, 16s) linear infinite;
+  will-change: transform;
+}
+.anim-steam {
+  animation: steam var(--dur, 4.5s) ease-out infinite;
+}
+
+/* ── Type helpers ─────────────────────────────────────────────── */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: color-mix(in oklab, var(--color-glow-500) 72%, transparent);
+}
+
+.rule-glow {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklab, var(--color-glow-500) 45%, transparent),
+    transparent
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* used by the circular "click here" label around the first lamp */
+@keyframes fadeIn {
+  to {
+    opacity: 1;
+  }
 }
