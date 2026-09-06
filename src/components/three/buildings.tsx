@@ -39,8 +39,10 @@ export const ACCENT = {
   curtain: new THREE.MeshBasicMaterial({ color: 0x000000, toneMapped: false }),
   dormer: new THREE.MeshBasicMaterial({ color: 0x000000, toneMapped: false }),
 };
-/** Set by the hotspot, read by the feature building. 0 = idle, 1 = hovered. */
-export const featureHover = { v: 0 };
+/** Which feature shop the pointer is over, "" for none. Keyed by id rather
+    than a bare flag — with two shops on the street a shared boolean would
+    light both at once. */
+export const featureHover = { id: "" };
 const WARM_LIFT = new THREE.Color("#ffa040");
 
 export function setAccentGlow(f: number) {
@@ -71,7 +73,10 @@ export type Facade = {
   /** not every shop has an awning */
   awning: boolean;
   /** the one built out in full — Experience */
-  feature?: boolean;
+  /** slug of the room behind it; absent for ordinary buildings */
+  feature?: string;
+  /** what the fascia says */
+  sign?: string;
   shop: "shopfront" | "door" | "plain";
   accent?: string;
   seed: number;
@@ -759,7 +764,8 @@ function ShopSign({ b, word, y }: { b: Facade; word: string; y: number }) {
   }, [letters]);
 
   useFrame((_, dt) => {
-    ease.current += (featureHover.v - ease.current) * Math.min(1, dt * 7);
+    const want = b.feature && featureHover.id === b.feature ? 1 : 0;
+    ease.current += (want - ease.current) * Math.min(1, dt * 7);
     const e = ease.current;
     mats.current.forEach((m, i) => {
       if (!m) return;
@@ -879,7 +885,7 @@ function FeatureShopfront({
         <planeGeometry args={[b.w - 0.9, 0.78]} />
         <meshToonMaterial color="#3a2410" gradientMap={ramp} />
       </mesh>
-      <ShopSign b={b} word="EXPERIENCE" y={head + 0.62} />
+      <ShopSign b={b} word={(b.sign ?? "").toUpperCase()} y={head + 0.62} />
 
       {/* cornice above the sign */}
       <mesh position={[b.x, head + 1.34, 0.34]}>
@@ -990,7 +996,7 @@ function GroundFloor({
     // The shop you can walk into brightens from within when you point at it —
     // its own lamps turned up, rather than a light shone at the facade.
     if (b.feature) {
-      const target = featureHover.v;
+      const target = featureHover.id === b.feature ? 1 : 0;
       ease.current += (target - ease.current) * Math.min(1, dt * 5);
     }
     const e2 = ease.current;
@@ -1233,6 +1239,8 @@ function makeRow(
   featureAfter?: number,
   /** how many eligible buildings to walk past first */
   featureSkip = 0,
+  /** slug + fascia text for the one shop built out in full */
+  featured?: { id: string; sign: string },
 ): Facade[] {
   const rng = makeRng(seed);
   // Three families only: deep dark red, deep dark blue, deep dark brown.
@@ -1264,10 +1272,12 @@ function makeRow(
     // edge of frame and gets clipped.
     const past = featureAfter !== undefined && px > featureAfter;
     if (past) eligible += 1;
-    const isFeature = past && !out.some((b) => b.feature) && eligible > featureSkip;
+    const isFeature =
+      featured !== undefined && past && !out.some((b) => b.feature) && eligible > featureSkip;
     out.push({
-      feature: isFeature,
-      id: isFeature ? "experience" : `${seed}-${i}`,
+      feature: isFeature ? featured!.id : undefined,
+      sign: isFeature ? featured!.sign : undefined,
+      id: isFeature ? featured!.id : `${seed}-${i}`,
       // sign flips the whole row for the far side of the street: with a
       // −90° group rotation, local +x maps to world +z, which would march
       // the row toward the camera instead of away from it.
@@ -1292,8 +1302,8 @@ function makeRow(
 }
 
 /* Long enough that the far end is pure fog rather than a visible stop. */
-export const LEFT_ROW = makeRow(717, 16, 1, 20, 1);
-export const RIGHT_ROW = makeRow(919, 16, -1);
+export const LEFT_ROW = makeRow(717, 16, 1, 20, 1, { id: "experience", sign: "Experience" });
+export const RIGHT_ROW = makeRow(919, 16, -1, 20, 1, { id: "projects", sign: "Projects" });
 
 /** Where a row building actually ends up in world space. */
 export function placeOf(row: Facade[], index: number, side: 1 | -1) {

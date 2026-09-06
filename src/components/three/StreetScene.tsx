@@ -276,13 +276,16 @@ const DOORS = (() => {
 function Shopfront({ d, onEnter }: { d: (typeof DOORS)[number]; onEnter: () => void }) {
   const [hovered, setHovered] = useState(false);
 
-  // no lights of our own — the building brightens its own interior
+  // no lights of our own — the building brightens its own interior.
+  // Only ever clear the slot we still own, so the shop being left can't
+  // blank out the one the pointer has already moved onto.
   useEffect(() => {
-    featureHover.v = hovered ? 1 : 0;
+    if (hovered) featureHover.id = d.id;
+    else if (featureHover.id === d.id) featureHover.id = "";
     return () => {
-      featureHover.v = 0;
+      if (featureHover.id === d.id) featureHover.id = "";
     };
-  }, [hovered]);
+  }, [hovered, d.id]);
 
   return (
     <group position={[d.x, 3.2, d.z]} rotation={[0, d.rotY, 0]}>

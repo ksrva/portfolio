@@ -1,13 +1,5 @@
-import { Nav } from "@/components/Nav";
-import { Street } from "@/components/street/Street";
+import { StreetClient } from "@/components/three/StreetClient";
 
 export default function Home() {
-  return (
-    <>
-      <Nav />
-      <main>
-        <Street />
-      </main>
-    </>
-  );
+  return <StreetClient />;
 }

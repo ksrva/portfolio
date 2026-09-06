@@ -57,7 +57,7 @@ export function ExperienceView() {
           {lit && (
             <motion.div className="pointer-events-auto inline-block" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.9 }}>
               <Link
-                href="/prototype"
+                href="/"
                 className="group inline-flex items-center gap-3 font-mono text-[0.62rem] uppercase tracking-[0.2em] text-paper/55 transition-colors duration-300 hover:text-glow-400"
               >
                 <span className="inline-block transition-transform duration-300 group-hover:-translate-x-1">

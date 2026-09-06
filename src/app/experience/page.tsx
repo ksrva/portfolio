@@ -1,4 +1,4 @@
-import { ExperienceView } from "@/components/experience/ExperienceView";
+import { ExperienceView } from "@/components/three/ExperienceView";
 
 export const metadata = { title: "Experience — Kamakshi Sarvananthan" };
 
