@@ -43,6 +43,16 @@ export const ACCENT = {
     than a bare flag — with two shops on the street a shared boolean would
     light both at once. */
 export const featureHover = { id: "" };
+
+/* The shop you can walk into has to read as the way in *before* anyone
+   points at it, so it sits brighter than its neighbours at rest and lifts
+   further on hover. Rest values are the floor; hover adds on top. */
+const FEATURE_REST = 1.18;
+const FEATURE_HOVER = 1.45;
+const FEATURE_REST_LIGHT = 1.5;
+const FEATURE_HOVER_LIGHT = 4.2;
+/** How much of the sign is already legible before the letters run on. */
+const SIGN_REST = 0.2;
 const WARM_LIFT = new THREE.Color("#ffa040");
 
 export function setAccentGlow(f: number) {
@@ -745,7 +755,17 @@ export function useSignLetters(word: string) {
   }, [word]);
 }
 
-function ShopSign({ b, word, y }: { b: Facade; word: string; y: number }) {
+function ShopSign({
+  b,
+  word,
+  y,
+  clock,
+}: {
+  b: Facade;
+  word: string;
+  y: number;
+  clock?: React.RefObject<{ t: number }>;
+}) {
   const letters = useSignLetters(word);
   const mats = useRef<(THREE.MeshBasicMaterial | null)[]>([]);
   const ease = useRef(0);
@@ -767,11 +787,22 @@ function ShopSign({ b, word, y }: { b: Facade; word: string; y: number }) {
     const want = b.feature && featureHover.id === b.feature ? 1 : 0;
     ease.current += (want - ease.current) * Math.min(1, dt * 7);
     const e = ease.current;
+
+    // The sign comes up with the street, not before it. Without this the
+    // lettering hangs there through the dark opening and gives away the shop
+    // before the visitor has struck the first lamp.
+    const k = clock
+      ? (clock.current.t - INTRO_FIRST) / (INTRO_END - INTRO_FIRST)
+      : 1;
+    const streetUp = k <= 0 ? 0 : k >= 1 ? 1 : k * k * (3 - 2 * k);
+
     mats.current.forEach((m, i) => {
       if (!m) return;
-      // one letter at a time, left to right
+      // one letter at a time, left to right — but off a resting floor, so the
+      // name is readable from across the street and the hover writes it in
       const t = e * (letters.length + 3) - i;
-      m.opacity = t <= 0 ? 0 : t >= 1 ? 1 : t;
+      const run = t <= 0 ? 0 : t >= 1 ? 1 : t;
+      m.opacity = streetUp * (SIGN_REST + (1 - SIGN_REST) * run);
     });
   });
 
@@ -801,11 +832,13 @@ function FeatureShopfront({
   ramp,
   hold,
   holdLight,
+  clock,
 }: {
   b: Facade;
   ramp: THREE.Texture;
   hold: (m: THREE.MeshBasicMaterial | null, i: number) => void;
   holdLight: (l: THREE.PointLight | null, i: number, full: number) => void;
+  clock?: React.RefObject<{ t: number }>;
 }) {
   const shelf = useBookshelf();
   const glassW = b.w - 1.5;
@@ -885,7 +918,7 @@ function FeatureShopfront({
         <planeGeometry args={[b.w - 0.9, 0.78]} />
         <meshToonMaterial color="#3a2410" gradientMap={ramp} />
       </mesh>
-      <ShopSign b={b} word={(b.sign ?? "").toUpperCase()} y={head + 0.62} />
+      <ShopSign b={b} word={(b.sign ?? "").toUpperCase()} y={head + 0.62} clock={clock} />
 
       {/* cornice above the sign */}
       <mesh position={[b.x, head + 1.34, 0.34]}>
@@ -1000,18 +1033,22 @@ function GroundFloor({
       ease.current += (target - ease.current) * Math.min(1, dt * 5);
     }
     const e2 = ease.current;
-    const boost = b.feature ? 1 + e2 * 1.5 : 1;
+    const boost = b.feature ? FEATURE_REST + e2 * FEATURE_HOVER : 1;
 
     glow.current.forEach((m, i) => {
       if (m && base.current[i]) {
         m.color.copy(base.current[i]).multiplyScalar(f * boost);
         // push it toward amber as it lifts, so it reads as warmer light and
         // not just more of the same
-        if (b.feature && e2 > 0.001) m.color.lerp(WARM_LIFT, e2 * 0.28);
+        if (b.feature) m.color.lerp(WARM_LIFT, 0.06 + e2 * 0.24);
       }
     });
     lights.current.forEach((l, i) => {
-      if (l) l.intensity = (lightMax.current[i] ?? 0) * f * (b.feature ? 1 + ease.current * 4.5 : 1);
+      if (l)
+        l.intensity =
+          (lightMax.current[i] ?? 0) *
+          f *
+          (b.feature ? FEATURE_REST_LIGHT + ease.current * FEATURE_HOVER_LIGHT : 1);
     });
 
     if (k >= 1) settled.current = true;
@@ -1019,7 +1056,7 @@ function GroundFloor({
 
 
   if (b.feature) {
-    return <FeatureShopfront b={b} ramp={ramp} hold={hold} holdLight={holdLight} />;
+    return <FeatureShopfront b={b} ramp={ramp} hold={hold} holdLight={holdLight} clock={clock} />;
   }
 
   if (b.shop === "door") {

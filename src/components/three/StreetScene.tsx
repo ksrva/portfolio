@@ -265,15 +265,40 @@ function Windows({ data }: { data: Win[] }) {
   );
 }
 
-/* The ways in. Just the one built out so far — it points at the building
-   tagged `feature`, so it follows if the generator ever moves it. */
-const DOORS = (() => {
-  const i = LEFT_ROW.findIndex((b) => b.feature);
-  if (i < 0) return [];
-  return [{ ...placeOf(LEFT_ROW, i, -1), id: "experience", label: "Experience" }];
-})();
+/* The ways in — one per row that carries a feature shop. Each is found by
+   its `feature` tag rather than positioned by hand, so a door follows if the
+   generator ever moves its building, and each carries the camera
+   destination for its own side of the street. */
+type Door = ReturnType<typeof placeOf> & {
+  id: string;
+  label: string;
+  href: string;
+  pos: THREE.Vector3;
+  look: THREE.Vector3;
+};
 
-function Shopfront({ d, onEnter }: { d: (typeof DOORS)[number]; onEnter: () => void }) {
+const doorOn = (row: typeof LEFT_ROW, side: 1 | -1, label: string, href: string): Door | null => {
+  const i = row.findIndex((b) => b.feature);
+  if (i < 0) return null;
+  const at = placeOf(row, i, side);
+  return {
+    ...at,
+    id: row[i].feature!,
+    label,
+    href,
+    // facades sit at x = ±STREET_HALF; the interior is further out again, so
+    // the camera ends up through the door rather than in the glass
+    pos: new THREE.Vector3(side * (STREET_HALF + 2.2), 2.7, at.z),
+    look: new THREE.Vector3(side * (STREET_HALF + 9), 2.4, at.z),
+  };
+};
+
+const DOORS: Door[] = [
+  doorOn(LEFT_ROW, -1, "Experience", "/experience"),
+  doorOn(RIGHT_ROW, 1, "Projects", "/projects"),
+].filter((d): d is Door => d !== null);
+
+function Shopfront({ d, onEnter }: { d: Door; onEnter: (d: Door) => void }) {
   const [hovered, setHovered] = useState(false);
 
   // no lights of our own — the building brightens its own interior.
@@ -302,7 +327,7 @@ function Shopfront({ d, onEnter }: { d: (typeof DOORS)[number]; onEnter: () => v
         }}
         onClick={(e) => {
           e.stopPropagation();
-          onEnter();
+          onEnter(d);
         }}
       >
         <planeGeometry args={[d.w - 0.8, 5.4]} />
@@ -428,18 +453,11 @@ function IntroClock({
   return null;
 }
 
-/** Where the camera ends up: just through the door of the feature shop. */
-const DEST = (() => {
-  const b = LEFT_ROW.find((f) => f.feature);
-  const z = b ? -b.x : -30;
-  return {
-    // the left row's facades sit at x = −STREET_HALF, interior is further out
-    pos: new THREE.Vector3(-STREET_HALF - 2.2, 2.7, z),
-    look: new THREE.Vector3(-STREET_HALF - 9, 2.4, z),
-  };
-})();
+/** Where the camera ends up depends on which door was taken, so the
+    destination rides on the fly state rather than being a module constant. */
+type Fly = { t: number; running: boolean; dest: Door | null };
 
-function Rig({ fly }: { fly: React.RefObject<{ t: number; running: boolean }> }) {
+function Rig({ fly }: { fly: React.RefObject<Fly> }) {
   const { camera, pointer } = useThree();
   const target = useRef(new THREE.Vector3(0, 9, -78));
   const from = useRef(new THREE.Vector3());
@@ -461,8 +479,11 @@ function Rig({ fly }: { fly: React.RefObject<{ t: number; running: boolean }> })
       const t = fly.current.t;
       // slow out of the street, then accelerate through the doorway
       const e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-      camera.position.lerpVectors(from.current, DEST.pos, e);
-      look.current.lerpVectors(fromLook.current, DEST.look, e);
+      const dest = fly.current.dest;
+      if (dest) {
+        camera.position.lerpVectors(from.current, dest.pos, e);
+        look.current.lerpVectors(fromLook.current, dest.look, e);
+      }
       camera.lookAt(look.current);
       // widening the lens as it arrives sells the acceleration
       const cam = camera as THREE.PerspectiveCamera;
@@ -490,8 +511,8 @@ function Scene({
   clock: React.RefObject<{ t: number; ceiling: number }>;
   prompt: boolean;
   onPrompt: () => void;
-  fly: React.RefObject<{ t: number; running: boolean }>;
-  onEnter: () => void;
+  fly: React.RefObject<Fly>;
+  onEnter: (d: Door) => void;
 }) {
   const ambient = useRef<THREE.AmbientLight>(null);
   const moon = useRef<THREE.DirectionalLight>(null);
@@ -567,7 +588,7 @@ export default function StreetScene() {
     t: alreadyLit ? INTRO_END + 1 : 0,
     ceiling: alreadyLit ? Number.POSITIVE_INFINITY : 0,
   });
-  const fly = useRef({ t: 0, running: false });
+  const fly = useRef<Fly>({ t: 0, running: false, dest: null });
   const router = useRouter();
   const [entering, setEntering] = useState(false);
   const [typed, setTyped] = useState(alreadyLit ? GREETING.length : 0);
@@ -602,12 +623,13 @@ export default function StreetScene() {
   const centred = phase === "typing" || phase === "waiting";
 
   // fly through the door, then swap routes while the frame is full of light
-  const enterShop = () => {
+  const enterShop = (d: Door) => {
     if (entering) return;
     setEntering(true);
+    fly.current.dest = d;
     fly.current.running = true;
-    router.prefetch("/experience");
-    setTimeout(() => router.push("/experience"), 1500);
+    router.prefetch(d.href);
+    setTimeout(() => router.push(d.href), 1500);
   };
 
   return (

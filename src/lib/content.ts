@@ -52,8 +52,22 @@ export const about = {
 export type Job = {
   org: string;
   role: string;
+  /** Year the entry anchors under. Consecutive jobs sharing one become a
+      single group, so the rail prints each year once. */
+  year: string;
+  /** Months only — the year already sits in the ledger's margin. */
+  span: string;
   period: string;
   location?: string;
+  /** Just the city. Set beside the role, where "Toronto, ON" would read as
+      one comma too many. */
+  city?: string;
+  /** One line, 15–20 words. What the timeline actually shows. */
+  highlight: string;
+  /** Volunteer/extracurricular entries stay out of the experience timeline,
+      which is co-op roles only. */
+  kind?: "volunteer";
+  /** Long form, kept for anywhere that wants the full account. */
   blurb: string;
   stack?: readonly string[];
 };
@@ -61,57 +75,88 @@ export type Job = {
 export const work: readonly Job[] = [
   {
     org: "Triple",
+    city: "Toronto",
+    year: "2026",
+    span: "May–Aug",
     role: "Software Engineer Intern",
     period: "May — Aug 2026",
     location: "Toronto, ON",
+    highlight:
+      "Built a probabilistic entity-resolution pipeline over DuckDB, resolving 66% of matches at 95% precision across 100K+ record datasets.",
     blurb:
       "Architected an end-to-end Raiser's Edge NXT integration — OAuth 2.0 onboarding, two-way record sync, and an embedded add-in surfacing matches inside the CRM — replacing engineer-assisted setup. Built a probabilistic linkage pipeline over DuckDB resolving 66% of matches at 95% precision across 100K+ record datasets, and the Stripe payments architecture behind it with a Postgres credit ledger.",
     stack: ["Python", "DuckDB", "Postgres", "Stripe", "Splink"],
   },
   {
+    org: "WatStreet",
+    city: "Waterloo",
+    kind: "volunteer",
+    year: "2025",
+    span: "Ongoing",
+    role: "Project Lead, Quant Finance",
+    period: "2025 — present",
+    location: "Waterloo, ON",
+    highlight:
+      "Extending the HAR-RV volatility model with order-sensitive encodings, capturing directional effects that symmetric formulations miss.",
+    blurb:
+      "Leading an extension to the HAR-RV volatility model that adds order-sensitive encodings to capture directional effects in realised volatility, resolving symmetry limitations in the traditional formulation. Built a modular decomposition framework using dynamic interval averaging and regime-dependent parameterisation.",
+    stack: ["Python", "NumPy", "Pandas"],
+  },
+  {
     org: "CPP Investments",
+    city: "Toronto",
+    year: "2025",
+    span: "Sep–Dec",
     role: "Software Engineer Intern, Cloud Infrastructure",
     period: "Sep — Dec 2025",
     location: "Toronto, ON",
+    highlight:
+      "Built AI-powered incident alerting on AWS Lambda and CloudWatch, pairing real-time alarms with LLM summarisation for on-call engineers.",
     blurb:
       "Built an MVP for AI-powered incident alerting on AWS Lambda and CloudWatch, pairing real-time alerts with LLM summarisation to draft incident reports for on-call engineers. Shipped an observability pipeline into QuickSight for equity-trading refresh performance, and prototyped an AIOps agent for root-cause analysis across distributed logs.",
     stack: ["AWS Lambda", "CloudWatch", "QuickSight", "Python", "LLMs"],
   },
   {
     org: "Theory Ventures",
+    city: "San Francisco",
+    year: "2025",
+    span: "Jan–Apr",
     role: "Data Engineer Intern, Signals Intelligence",
     period: "Jan — Apr 2025",
     location: "San Francisco, CA",
+    highlight:
+      "Shipped LLM-powered enrichment pipelines behind a REST API, and moved a legacy microservice onto Cloud Run, cutting deploys 60%.",
     blurb:
       "Built LLM-powered enrichment and summarisation pipelines exposed through a REST API over PostgreSQL, automating most of the manual tagging in market-intelligence work. Re-architected a legacy microservice from VMs onto Cloud Run with CI/CD in GitHub Actions, cutting deployment time 60%.",
     stack: ["Python", "PostgreSQL", "GCP", "Hasura", "GraphQL"],
   },
   {
     org: "Litens Automotive",
+    city: "Woodbridge",
+    year: "2024",
+    span: "May–Aug",
     role: "DevOps Engineer Intern, Business Systems",
     period: "May — Aug 2024",
     location: "Woodbridge, ON",
+    highlight:
+      "Built an asset-forecasting dashboard in Python and Power BI, cutting licence over-allocation 20% and extending visibility to three months.",
     blurb:
       "Led a refactor of a legacy database schema and the SQL behind compliance reporting, improving query performance 15%. Built an asset-forecasting dashboard that cut licence over-allocation 20% and extended forecast visibility from one week to over three months.",
     stack: ["Python", "SQL", "Power BI", "Selenium"],
   },
   {
     org: "Canadian STEM & AI Academy",
+    city: "Markham",
+    year: "2022",
+    span: "Sep–Jan",
     role: "Software Development Intern",
     period: "Sep 2022 — Jan 2023",
     location: "Markham, ON",
+    highlight:
+      "Optimised React rendering with memoisation and integrated Axios endpoints, improving performance 15% and cutting load times 30%.",
     blurb:
       "Optimised React component rendering with memoisation, cutting re-renders and improving performance 15%. Integrated API endpoints with Axios, improving data-retrieval efficiency 30% and reducing load times.",
     stack: ["React", "JavaScript", "Axios"],
-  },
-  {
-    org: "WatStreet",
-    role: "Project Lead, Quant Finance",
-    period: "2025 — present",
-    location: "Waterloo, ON",
-    blurb:
-      "Leading an extension to the HAR-RV volatility model that adds order-sensitive encodings to capture directional effects in realised volatility, resolving symmetry limitations in the traditional formulation. Built a modular decomposition framework using dynamic interval averaging and regime-dependent parameterisation.",
-    stack: ["Python", "NumPy", "Pandas"],
   },
 ] as const;
 
@@ -158,8 +203,8 @@ export const projects: readonly Project[] = [
     year: "2026",
     kind: "Playground",
     blurb:
-      "A hand-drawn night scene in SVG — no images, no canvas, roughly 40kb of vectors and a lot of opinions about colour.",
-    stack: ["Next.js", "Motion", "SVG"],
+      "A night street you walk down: a hand-built three.js town, generated facade by facade, with two shops you can go inside.",
+    stack: ["Next.js", "three.js", "React Three Fiber"],
     repo: "https://github.com/",
   },
 ] as const;
