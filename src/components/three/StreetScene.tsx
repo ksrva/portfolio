@@ -8,7 +8,7 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Bloom, EffectComposer, Vignette } from "@react-three/postprocessing";
 import { Effect } from "postprocessing";
 import { makeRng } from "@/lib/rand";
-import { INK, LEFT_ROW, PAVEMENT_H, PAVEMENT_W, Pavement, RIGHT_ROW, STREET_HALF, StreetLamps, StreetSnow, Terrace, featureHover, placeOf, setAccentGlow, HOLD_T, INTRO_FIRST, INTRO_END } from "./buildings";
+import { INK, LEFT_ROW, PAVEMENT_H, PAVEMENT_W, Pavement, RIGHT_ROW, STREET_END, STREET_HALF, StreetLamps, StreetSnow, Terrace, featureHover, placeOf, setAccentGlow, HOLD_T, INTRO_FIRST, INTRO_END } from "./buildings";
 
 /* ═══════════════════════════════════════════════════════════════════
    A night street, built rather than drawn — and then deliberately
@@ -457,6 +457,30 @@ function IntroClock({
     destination rides on the fly state rather than being a module constant. */
 type Fly = { t: number; running: boolean; dest: Door | null };
 
+/* ── Walking down the street ──────────────────────────────────────────
+   Scroll is the pace: the page is made tall enough to cover the town, and
+   how far down it you are is how far along you've walked. The Rig reads
+   this each frame rather than re-rendering on scroll — at 60fps a React
+   state update per wheel event would be the most expensive thing here. */
+
+/** Where you stand before walking, and the last stride the street allows.
+    STREET_END already holds back several buildings' worth of fog, so the
+    far end never becomes an edge you can reach. */
+const WALK_FROM = -16;
+const WALK_TO = -STREET_END;
+const WALK_SPAN = WALK_FROM - WALK_TO;
+/** Scroll pixels per world unit. Higher is a slower, more deliberate pace. */
+const PX_PER_UNIT = 30;
+/* How far the cursor turns your head. Applied to the point you're looking at
+   62 units ahead, so 26 across is roughly a 23° glance — enough to face a
+   shopfront as you pass it without the street sliding out of frame. */
+const LOOK_X = 26;
+const LOOK_Y = 6;
+export const WALK_PAGE_PX = WALK_SPAN * PX_PER_UNIT;
+
+/** 0 at the near end, 1 at the far. Written by the page, read by the Rig. */
+const walk = { to: 0, at: 0, dist: 0 };
+
 function Rig({ fly }: { fly: React.RefObject<Fly> }) {
   const { camera, pointer } = useThree();
   const target = useRef(new THREE.Vector3(0, 9, -78));
@@ -464,6 +488,11 @@ function Rig({ fly }: { fly: React.RefObject<Fly> }) {
   const fromLook = useRef(new THREE.Vector3());
   const look = useRef(new THREE.Vector3());
   const captured = useRef(false);
+  // the head turn eases on its own; the forward tracking below stays exact,
+  // so easing the offsets rather than the whole point keeps the look from
+  // dragging behind the camera as you walk
+  const aimX = useRef(0);
+  const aimY = useRef(0);
 
   /* eslint-disable react-hooks/immutability */
   useFrame((_, dt) => {
@@ -492,10 +521,42 @@ function Rig({ fly }: { fly: React.RefObject<Fly> }) {
       return;
     }
 
-    camera.position.x += (pointer.x * 2.2 - camera.position.x) * k;
-    camera.position.z = -16;
-    camera.position.y += (6.5 + pointer.y * 1.1 - camera.position.y) * k;
+    // ── the walk ───────────────────────────────────────────────────
+    // Ease toward the scrolled-to position rather than snapping: the lag is
+    // what gives a stride weight when you start and stop.
+    const before = walk.at;
+    walk.at += (walk.to - walk.at) * (1 - Math.pow(0.05, dt));
+    const moved = Math.abs(walk.at - before);
+    walk.dist += moved;
+
+    // Speed drives how much the gait shows — standing still, it settles.
+    const gait = Math.min(1, moved / (dt || 0.016) / 4);
+    // two footfalls per stride, so the vertical bob runs at twice the sway
+    const step = walk.dist * 0.42;
+    const bob = Math.sin(step * 2) * 0.13 * gait;
+    const sway = Math.sin(step) * 0.35 * gait;
+    const roll = Math.sin(step) * 0.006 * gait;
+
+    const z = WALK_FROM - walk.at * WALK_SPAN;
+    camera.position.z += (z - camera.position.z) * Math.min(1, dt * 4);
+    // The cursor turns your head, it doesn't move your feet — so the body
+    // only leans with it, and the look does the rest.
+    camera.position.x += (pointer.x * 0.9 + sway - camera.position.x) * k;
+    camera.position.y += (6.5 + pointer.y * 0.45 + bob - camera.position.y) * k;
+
+    const turn = Math.min(1, dt * 2.6);
+    aimX.current += (pointer.x * LOOK_X - aimX.current) * turn;
+    aimY.current += (pointer.y * LOOK_Y - aimY.current) * turn;
+
+    // look ahead down the street from wherever you're standing, offset by
+    // wherever you're looking
+    target.current.set(
+      camera.position.x + aimX.current + sway * 0.4,
+      9 + aimY.current,
+      camera.position.z - 62,
+    );
     camera.lookAt(target.current);
+    camera.rotation.z = roll;
   });
   /* eslint-enable react-hooks/immutability */
   return null;
@@ -621,6 +682,32 @@ export default function StreetScene() {
   };
 
   const centred = phase === "typing" || phase === "waiting";
+  const walking = phase === "done";
+
+  /* Scroll is read straight off the window each frame the browser offers
+     one, and written to the module-level `walk` the Rig polls. Deliberately
+     not React state: this fires on every wheel tick, and re-rendering the
+     whole scene graph for a camera nudge would cost far more than the walk. */
+  useEffect(() => {
+    if (!walking) {
+      walk.to = 0;
+      window.scrollTo(0, 0);
+      return;
+    }
+    const onScroll = () => {
+      const span = document.body.scrollHeight - window.innerHeight;
+      walk.to = span > 0 ? Math.min(1, Math.max(0, window.scrollY / span)) : 0;
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [walking]);
+
+  // coming back from a shop drops you at the near end again, on foot
+  useEffect(() => {
+    walk.at = 0;
+    walk.dist = 0;
+  }, []);
 
   // fly through the door, then swap routes while the frame is full of light
   const enterShop = (d: Door) => {
@@ -633,7 +720,14 @@ export default function StreetScene() {
   };
 
   return (
-    <div className="relative h-[100svh] w-full bg-[#05070c]">
+    <div className="relative w-full bg-[#05070c]">
+      {/* The scene is pinned; the page behind it is what actually scrolls.
+          Its height is the length of the street in pixels, so one page of
+          scrolling is one walk from end to end. Only tall once the lights
+          are up — there's nowhere to walk to during the intro. */}
+      <div style={{ height: walking ? `calc(100svh + ${Math.round(WALK_PAGE_PX)}px)` : "100svh" }} />
+
+      <div className="fixed inset-0 h-[100svh] w-full">
       <Canvas
         dpr={[1, 1.6]}
         gl={{ antialias: true, powerPreference: "high-performance", toneMappingExposure: 0.45 }}
@@ -668,7 +762,7 @@ export default function StreetScene() {
             className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center px-6 sm:px-10"
             exit={{ opacity: 0, y: -18, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] } }}
           >
-            <h1 className="font-masthead text-[clamp(2.2rem,6.4vw,4.8rem)] font-normal leading-[1.05] tracking-[-0.005em] text-paper">
+            <h1 className="font-masthead text-[clamp(1.7rem,4.6vw,3.4rem)] font-normal leading-[1.15] tracking-[-0.03em] text-paper">
               {GREETING.slice(0, typed)}
               {typed < GREETING.length && (
                 <span
@@ -682,7 +776,7 @@ export default function StreetScene() {
           </motion.div>
         )}
       </AnimatePresence>
-
+      </div>
     </div>
   );
 }

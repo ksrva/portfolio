@@ -41,7 +41,7 @@ function Entry({ job, year, i }: { job: Job; year: string | null; i: number }) {
       <div>
         {year && <p className={`mb-2 text-[0.78rem] tabular-nums sm:hidden ${META}`}>{year}</p>}
 
-        <h3 className={`font-masthead text-[1.5rem] leading-[1.15] ${NAME}`}>{job.org}</h3>
+        <h3 className={`font-masthead text-[1.18rem] leading-[1.3] tracking-[-0.02em] ${NAME}`}>{job.org}</h3>
 
         <p className={`mt-1 text-[0.82rem] leading-snug ${META}`}>
           {job.role}
@@ -128,7 +128,7 @@ export function ExperienceView() {
         <div className="relative mx-auto mt-[14vh] max-w-3xl">
           {/* min-height reserves the line, so nothing jumps when the title
               starts typing */}
-          <h1 className="min-h-[1.1em] font-masthead text-[clamp(2.4rem,7vw,4.4rem)] leading-[1] text-paper">
+          <h1 className="min-h-[1.1em] font-masthead text-[clamp(1.9rem,5vw,3.4rem)] leading-[1.05] tracking-[-0.03em] text-paper">
             {TITLE.slice(0, typed)}
             {phase === "typing" && typed < TITLE.length && (
               <span

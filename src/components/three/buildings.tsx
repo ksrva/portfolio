@@ -495,7 +495,13 @@ function useWindowFurniture(data: Facade[]) {
             }
           }
 
-          if (f < 2 && rng.chance(0.45)) {
+          // Draw the chance either way, then discard it over a shop sign: the
+          // rng is a shared sequence, so short-circuiting before the call
+          // would reshuffle every window after it and redraw the street.
+          const wantsBox = f < 2 && rng.chance(0.45);
+          // the lowest row of boxes hangs at the same height and stands
+          // proud of the fascia, right where the lettering is
+          if (wantsBox && !(b.feature && f === 0)) {
             boxes.push(mat([wx, wy - st.h / 2 - 0.52, 0.55], [st.w + 0.2, 0.42, 0.7]));
             for (let k = 0; k < 4; k++) {
               foliage.push(
@@ -730,9 +736,10 @@ function Roof({ b, ramp }: { b: Facade; ramp: THREE.Texture }) {
 /*  The Experience shopfront — the one built out in full               */
 /* ────────────────────────────────────────────────────────────────── */
 
-/** One canvas per letter, so they can be revealed individually. Georgia
+/** One canvas per letter, so they can be revealed individually. Courier New
     rather than the site's webfont: canvas needs a family the browser already
-    has registered, and next/font mangles the family name. */
+    has registered, and next/font mangles the family name. It's the system
+    face Courier Prime descends from, so the fascias match the titles. */
 export function useSignLetters(word: string) {
   return useMemo(() => {
     const size = 128;
@@ -741,7 +748,7 @@ export function useSignLetters(word: string) {
       cv.width = size;
       cv.height = size;
       const g = cv.getContext("2d")!;
-      g.font = `600 ${size * 0.7}px Georgia, "Times New Roman", serif`;
+      g.font = `700 ${size * 0.62}px "Courier New", Courier, monospace`;
       const adv = g.measureText(ch).width / size;
       g.textAlign = "center";
       g.textBaseline = "middle";
@@ -840,57 +847,73 @@ function FeatureShopfront({
   holdLight: (l: THREE.PointLight | null, i: number, full: number) => void;
   clock?: React.RefObject<{ t: number }>;
 }) {
+  // both textures are built either way — hooks can't be called conditionally,
+  // and they're one canvas each
   const shelf = useBookshelf();
+  const studio = useWorkshopWindow();
+
+  /* The two shops are different trades, so they get different fronts: the
+     bookshop keeps its Georgian panes and warm joinery, the workshop is
+     glazed like a works — fewer, wider lights in a steel frame. */
+  const trade = b.feature === "projects" ? "workshop" : "bookshop";
+  const display = trade === "workshop" ? studio : shelf;
+  const frame = trade === "workshop" ? "#191d1f" : "#1c0d05";
+  const door = trade === "workshop" ? "#3d4a3a" : "#6b3a18";
+  const riser = trade === "workshop" ? "#2b3330" : "#33261a";
+  const panel = trade === "workshop" ? "#3d4a44" : "#483725";
+  const reveal = trade === "workshop" ? "#1b211f" : "#241206";
+
   const glassW = b.w - 1.5;
   const sill = 0.85; // stallriser height
   const head = GROUND_H - 0.5;
   const doorW = 1.9;
 
-  // small panes, Georgian shopfront proportions
-  const bays = 7;
-  const tiers = 5;
+  const bays = trade === "workshop" ? 4 : 7;
+  const tiers = trade === "workshop" ? 3 : 5;
   const bayW = glassW / bays;
   const tierH = (head - sill) / tiers;
+  // a works window carries heavier steel than a shop's glazing bars
+  const bar = trade === "workshop" ? 0.1 : 0.075;
 
   return (
     <group>
       {/* reveal */}
       <mesh position={[b.x, (head + sill) / 2, 0.06]}>
         <boxGeometry args={[glassW + 0.7, head - sill + 0.7, 0.3]} />
-        <meshToonMaterial color="#241206" gradientMap={ramp} />
+        <meshToonMaterial color={reveal} gradientMap={ramp} />
       </mesh>
 
       {/* the shop, seen through the glass */}
       <mesh position={[b.x, (head + sill) / 2, 0.22]}>
         <planeGeometry args={[glassW, head - sill]} />
-        <meshBasicMaterial ref={(m) => hold(m, 0)} map={shelf} toneMapped={false} />
+        <meshBasicMaterial ref={(m) => hold(m, 0)} map={display} toneMapped={false} />
       </mesh>
 
       {/* a doorway set into the middle, darker and deeper */}
       <mesh position={[b.x, (head + sill) / 2 - 0.2, 0.2]}>
         <planeGeometry args={[doorW, head - 0.2]} />
-        <meshBasicMaterial ref={(m) => hold(m, 1)} color="#6b3a18" toneMapped={false} />
+        <meshBasicMaterial ref={(m) => hold(m, 1)} color={door} toneMapped={false} />
       </mesh>
 
       {/* glazing bars */}
       <group>
         {Array.from({ length: bays + 1 }, (_, i) => (
           <mesh key={`v${i}`} position={[b.x - glassW / 2 + i * bayW, (head + sill) / 2, 0.3]}>
-            <boxGeometry args={[0.075, head - sill, 0.13]} />
-            <meshToonMaterial color="#1c0d05" gradientMap={ramp} />
+            <boxGeometry args={[bar, head - sill, 0.13]} />
+            <meshToonMaterial color={frame} gradientMap={ramp} />
           </mesh>
         ))}
         {Array.from({ length: tiers + 1 }, (_, i) => (
           <mesh key={`h${i}`} position={[b.x, sill + i * tierH, 0.3]}>
-            <boxGeometry args={[glassW + 0.12, 0.075, 0.13]} />
-            <meshToonMaterial color="#1c0d05" gradientMap={ramp} />
+            <boxGeometry args={[glassW + 0.12, bar, 0.13]} />
+            <meshToonMaterial color={frame} gradientMap={ramp} />
           </mesh>
         ))}
         {/* heavier posts either side of the door */}
         {[-doorW / 2, doorW / 2].map((dx) => (
           <mesh key={dx} position={[b.x + dx, (head + sill) / 2 - 0.2, 0.33]}>
             <boxGeometry args={[0.2, head, 0.2]} />
-            <meshToonMaterial color="#1c0d05" gradientMap={ramp} />
+            <meshToonMaterial color={frame} gradientMap={ramp} />
           </mesh>
         ))}
       </group>
@@ -898,13 +921,13 @@ function FeatureShopfront({
       {/* stallriser: panelled base below the glass */}
       <mesh position={[b.x, sill / 2, 0.28]}>
         <boxGeometry args={[glassW + 0.7, sill, 0.34]} />
-        <meshToonMaterial color="#33261a" gradientMap={ramp} />
+        <meshToonMaterial color={riser} gradientMap={ramp} />
         <Outlines thickness={0.03} color={INK} />
       </mesh>
       {Array.from({ length: 5 }, (_, i) => (
         <mesh key={i} position={[b.x - glassW / 2 + (i + 0.5) * (glassW / 5), sill / 2, 0.46]}>
           <boxGeometry args={[glassW / 5 - 0.35, sill - 0.34, 0.05]} />
-          <meshToonMaterial color="#483725" gradientMap={ramp} />
+          <meshToonMaterial color={panel} gradientMap={ramp} />
         </mesh>
       ))}
 
@@ -1342,6 +1365,23 @@ function makeRow(
 export const LEFT_ROW = makeRow(717, 16, 1, 20, 1, { id: "experience", sign: "Experience" });
 export const RIGHT_ROW = makeRow(919, 16, -1, 20, 1, { id: "projects", sign: "Projects" });
 
+/* Where the walk stops — deliberately several buildings short of the end of
+   the rows. The town is built long so the far end reads as fog rather than a
+   visible stop, and strolling all the way to the last facade would walk you
+   straight into the edge the fog exists to hide. This leaves a few buildings
+   still ahead of you, dissolving, however far you go.
+
+   Measured off the generated rows rather than hard-coded: the widths are
+   random, so a fixed number would drift the moment a seed changed. Both rows
+   are checked and the shorter one wins, since they don't end level. */
+const FOG_BUFFER = 4;
+const endOf = (row: Facade[]) => {
+  // |x| because the far row is generated mirrored, with negative x
+  const ends = row.map((b) => Math.abs(b.x) - b.w / 2).sort((a, b) => a - b);
+  return ends[Math.max(0, ends.length - 1 - FOG_BUFFER)];
+};
+export const STREET_END = Math.min(endOf(LEFT_ROW), endOf(RIGHT_ROW));
+
 /** Where a row building actually ends up in world space. */
 export function placeOf(row: Facade[], index: number, side: 1 | -1) {
   const b = row[index];
@@ -1667,6 +1707,115 @@ export function Pavement({
 /** A wall of books. Texture rather than modelled objects: at this scale
     individual props read as pictograms, a repeating shelf pattern reads as
     depth. */
+/** What you see through the Projects window: a drafting studio, not a
+    bookshop. Bold silhouettes only — at street distance this texture is a
+    couple of hundred pixels wide, so anything finer than a shape is lost. */
+export function useWorkshopWindow() {
+  return useMemo(() => {
+    const w = 512;
+    const h = 512;
+    const cv = document.createElement("canvas");
+    cv.width = w;
+    cv.height = h;
+    const g = cv.getContext("2d")!;
+    const rng = makeRng(4471);
+
+    g.fillStyle = "#1e1710";
+    g.fillRect(0, 0, w, h);
+
+    // ── pegboard across the top, hung with tools ──────────────────
+    g.fillStyle = "#7d6242";
+    g.fillRect(0, 0, w, 146);
+    g.fillStyle = "#2a1f12";
+    for (let y = 16; y < 146; y += 18) {
+      for (let x = 16; x < w; x += 18) {
+        g.beginPath();
+        g.arc(x, y, 2.3, 0, Math.PI * 2);
+        g.fill();
+      }
+    }
+    // hand tools: a handle and a head, repeated along the board
+    for (let i = 0; i < 5; i++) {
+      const x = 44 + i * 86 + rng.range(-8, 8);
+      g.fillStyle = "#5b3520";
+      g.fillRect(x - 5, 46, 10, 62);
+      g.fillStyle = "#9aa0a6";
+      g.fillRect(x - 22, 30, 44, 18);
+    }
+    // a saw, and a coil of cable
+    g.fillStyle = "#9aa0a6";
+    g.beginPath();
+    g.moveTo(376, 40);
+    g.lineTo(470, 40);
+    g.lineTo(376, 96);
+    g.closePath();
+    g.fill();
+    g.strokeStyle = "#4a4238";
+    g.lineWidth = 9;
+    g.beginPath();
+    g.arc(74, 74, 30, 0, Math.PI * 2);
+    g.stroke();
+
+    // ── the drafting board, raked, with a drawing taped to it ─────
+    g.save();
+    g.translate(w * 0.47, h * 0.55);
+    g.rotate(-0.26);
+    g.fillStyle = "#6d5636";
+    g.fillRect(-160, -96, 320, 192);
+    g.fillStyle = "#c8b48c"; // the edge catching the light
+    g.fillRect(-160, -96, 320, 7);
+    g.fillStyle = "#1d4368"; // blueprint
+    g.fillRect(-132, -78, 264, 158);
+    g.strokeStyle = "rgba(205,228,255,0.75)";
+    g.lineWidth = 3;
+    for (let i = 0; i < 3; i++) {
+      g.strokeRect(rng.range(-118, 10), rng.range(-64, 6), rng.range(50, 96), rng.range(38, 66));
+    }
+    g.beginPath();
+    g.arc(rng.range(-60, 70), rng.range(-30, 40), 22, 0, Math.PI * 2);
+    g.stroke();
+    // the parallel rule lying across it
+    g.fillStyle = "#b8a179";
+    g.fillRect(-150, 30, 300, 12);
+    g.restore();
+
+    // ── bench along the bottom, with tins and rolled plans ────────
+    g.fillStyle = "#4a3520";
+    g.fillRect(0, h - 96, w, 96);
+    g.fillStyle = "#6b5335";
+    g.fillRect(0, h - 96, w, 9);
+    for (let i = 0; i < 7; i++) {
+      const x = 26 + i * 62 + rng.range(-6, 6);
+      const th = rng.range(26, 44);
+      g.fillStyle = rng.pick(["#7a6030", "#4a5b3a", "#8d4a2a", "#3f5a52", "#6f6a5a"]);
+      g.fillRect(x, h - 96 - th, rng.range(26, 38), th);
+    }
+    // a crock of rolled drawings, standing at the right
+    g.fillStyle = "#3f5a52";
+    g.fillRect(392, h - 168, 62, 74);
+    for (let i = 0; i < 4; i++) {
+      g.save();
+      g.translate(404 + i * 13, h - 168);
+      g.rotate(rng.range(-0.2, 0.2));
+      g.fillStyle = i % 2 ? "#c8b48c" : "#ddd0b4";
+      g.fillRect(0, -78, 9, 82);
+      g.restore();
+    }
+
+    // ── the task lamp's pool of light over the board ──────────────
+    const pool = g.createRadialGradient(w * 0.52, h * 0.42, 8, w * 0.52, h * 0.42, 210);
+    pool.addColorStop(0, "rgba(255,190,110,0.42)");
+    pool.addColorStop(1, "rgba(255,190,110,0)");
+    g.fillStyle = pool;
+    g.fillRect(0, 0, w, h);
+
+    const tex = new THREE.CanvasTexture(cv);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 8;
+    return tex;
+  }, []);
+}
+
 export function useBookshelf() {
   return useMemo(() => {
     const w = 512;

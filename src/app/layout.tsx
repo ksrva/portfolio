@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Fraunces, Instrument_Serif, Inter, JetBrains_Mono } from "next/font/google";
+import { Fraunces, Inter, JetBrains_Mono, Quicksand } from "next/font/google";
 import { site } from "@/lib/content";
 import { SmoothScroll } from "@/components/SmoothScroll";
 import "./globals.css";
@@ -11,13 +11,12 @@ const fraunces = Fraunces({
   axes: ["SOFT", "WONK", "opsz"],
 });
 
-/* Instrument Serif for the name: one weight, high contrast, tight fit — a
-   display face that's meant to be set large. */
-const masthead = Instrument_Serif({
+/* Quicksand for the name: rounded terminals and a light stroke, so the
+   titles read soft and friendly. Variable font, so no weight to name. */
+const masthead = Quicksand({
   subsets: ["latin"],
   variable: "--font-masthead-face",
   display: "swap",
-  weight: "400",
 });
 
 const inter = Inter({
