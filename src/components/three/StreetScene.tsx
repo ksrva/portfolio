@@ -8,6 +8,7 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Bloom, EffectComposer, Vignette } from "@react-three/postprocessing";
 import { Effect } from "postprocessing";
 import { makeRng } from "@/lib/rand";
+import { StreetGuide } from "./StreetGuide";
 import { INK, LEFT_ROW, PAVEMENT_H, PAVEMENT_W, Pavement, RIGHT_ROW, STREET_END, STREET_HALF, StreetLamps, StreetSnow, Terrace, featureHover, placeOf, setAccentGlow, HOLD_T, INTRO_FIRST, INTRO_END } from "./buildings";
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -136,6 +137,10 @@ export function useToonRamp() {
   }, []);
 }
 
+/** The skyline's nearest row. It stands right across the road, so the walk
+    has to stop well short of it (see WALK_TO). */
+const SKYLINE_Z = -105;
+
 function useTown() {
   return useMemo(() => {
     const rng = makeRng(20260806);
@@ -146,7 +151,7 @@ function useTown() {
     // A skyline behind and above the terrace, well back in the fog. It only
     // has to give the roofline something to sit against.
     for (let row = 0; row < 3; row++) {
-      const z = -105 - row * 16;
+      const z = SKYLINE_Z - row * 16;
       let x = -46;
       while (x < 46) {
         const w = rng.range(5, 11);
@@ -464,10 +469,14 @@ type Fly = { t: number; running: boolean; dest: Door | null };
    state update per wheel event would be the most expensive thing here. */
 
 /** Where you stand before walking, and the last stride the street allows.
-    STREET_END already holds back several buildings' worth of fog, so the
-    far end never becomes an edge you can reach. */
+    STREET_END holds back from the end of the side rows, but the skyline
+    blocks stand across the road well before that, and walking on brought
+    you face to face with a blank wall. So the walk also stops short of the
+    skyline: at SKYLINE_CLEARANCE the exp² fog has started to take it, and
+    it still reads as the town beyond rather than a wall in front of you. */
+const SKYLINE_CLEARANCE = 40;
 const WALK_FROM = -16;
-const WALK_TO = -STREET_END;
+const WALK_TO = Math.max(-STREET_END, SKYLINE_Z + SKYLINE_CLEARANCE);
 const WALK_SPAN = WALK_FROM - WALK_TO;
 /** Scroll pixels per world unit. Higher is a slower, more deliberate pace. */
 const PX_PER_UNIT = 30;
@@ -652,6 +661,7 @@ export default function StreetScene() {
   const fly = useRef<Fly>({ t: 0, running: false, dest: null });
   const router = useRouter();
   const [entering, setEntering] = useState(false);
+  const [guideDue, setGuideDue] = useState(false);
   const [typed, setTyped] = useState(alreadyLit ? GREETING.length : 0);
   const [phase, setPhase] = useState<"typing" | "waiting" | "running" | "done">(
     alreadyLit ? "done" : "typing",
@@ -679,6 +689,9 @@ export default function StreetScene() {
     streetLit = true;
     setPhase("running");
     setTimeout(() => setPhase("done"), (INTRO_END - HOLD_T) * 1000 + 400);
+    // the guide opens while the last windows are still coming on, so it's
+    // been read by the time the street can be walked
+    setTimeout(() => setGuideDue(true), (INTRO_END - HOLD_T) * 1000 - 1100);
   };
 
   const centred = phase === "typing" || phase === "waiting";
@@ -776,6 +789,11 @@ export default function StreetScene() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* How to get about. Under the entry wipe (z-40), and gone once a
+          shop is chosen. Only offered unprompted on the first arrival —
+          guideDue is set by start(), which a return visit never calls. */}
+      <StreetGuide offer={guideDue} available={walking && !entering} hidden={entering} />
       </div>
     </div>
   );

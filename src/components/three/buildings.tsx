@@ -1416,43 +1416,6 @@ export const INTRO_END = INTRO_FIRST + 200 * INTRO_PER_UNIT + 26 * INTRO_WIN_STE
 export const litAt = (dist: number, jitter = 0) =>
   INTRO_FIRST + dist * INTRO_PER_UNIT + jitter;
 
-/** Letters set along an arc, arriving one at a time. */
-export function CircleLabel({
-  text,
-  radius,
-  arc = 150,
-}: {
-  text: string;
-  radius: number;
-  /** degrees the phrase spans, centred on the top of the circle */
-  arc?: number;
-}) {
-  const chars = [...text];
-  const step = arc / Math.max(1, chars.length - 1);
-  const start = -arc / 2;
-  return (
-    <div className="relative h-0 w-0 select-none">
-      {chars.map((ch, i) => (
-        <span
-          key={i}
-          className="absolute left-0 top-0 font-mono text-[11px] font-medium uppercase text-white"
-          style={{
-            // translate first, then rotate about the centre, so each glyph
-            // sits tangent to the circle
-            transform: `rotate(${start + i * step}deg) translate(-50%, -${radius}px)`,
-            transformOrigin: "0 0",
-            opacity: 0,
-            animation: `fadeIn 0.45s ease-out ${0.06 * i}s forwards`,
-            textShadow: "0 0 10px rgba(0,0,0,0.85)",
-          }}
-        >
-          {ch === " " ? "\u00A0" : ch}
-        </span>
-      ))}
-    </div>
-  );
-}
-
 const LAMP_OFF = new THREE.Color("#1a1e26");
 const LAMP_ON = new THREE.Color("#ffcb85");
 
@@ -1476,17 +1439,46 @@ function LampPost({
   const glass = useRef<THREE.MeshBasicMaterial>(null);
   const pool = useRef<THREE.MeshBasicMaterial>(null);
   const spill = useRef<THREE.MeshBasicMaterial>(null);
+  const halo = useRef<THREE.Sprite>(null);
+  const label = useRef<HTMLDivElement>(null);
+  // 0–1: how present the hotspot is. Eased rather than switched, so the
+  // prompt drifts in once the lamp has settled and melts away on the click.
+  const shown = useRef(0);
   const decal = useGlowDecal();
 
-  useFrame(() => {
+  useFrame((state, delta) => {
     if (!clock?.current || !light.current || !glass.current) return;
     const at = first ? FIRST_LAMP_AT : litAt(Math.abs(z - CAM_Z));
     const raw = (clock.current.t - at) / INTRO_WARMUP;
     const k = raw <= 0 ? 0 : raw >= 1 ? 1 : raw;
     // a filament stutters before it settles
     const f = k >= 1 ? 1 : k * (0.55 + 0.45 * Math.abs(Math.sin(k * 26)));
-    light.current.intensity = 46 * f;
-    glass.current.color.copy(LAMP_OFF).lerp(LAMP_ON, f);
+
+    const want = first && prompt && k >= 1 ? 1 : 0;
+    shown.current += (want - shown.current) * Math.min(1, delta * 2.5);
+    const v = shown.current;
+    // While the lamp is asking to be clicked it beats like a hotspot. The
+    // intro clock is parked during the wait, so the beat runs off the
+    // renderer's own clock. Squaring the sine gives a throb, not a sway.
+    const t = state.clock.getElapsedTime();
+    const s = 0.5 + 0.5 * Math.sin(t * 3.2);
+    const beat = s * s * v;
+    light.current.intensity = 46 * f * (1 + 0.6 * beat);
+    // pushed past 1 on the beat so the bloom pass flares with it
+    glass.current.color.copy(LAMP_OFF).lerp(LAMP_ON, f).multiplyScalar(1 + 0.9 * beat);
+    if (halo.current) {
+      const h = 2.2 + 0.9 * beat;
+      halo.current.scale.set(h, h, 1);
+      (halo.current.material as THREE.SpriteMaterial).opacity = (0.18 + 0.5 * s * s) * v;
+    }
+    if (label.current) {
+      // rises into place out of a blur, then holds still, breathing with the lamp
+      const el = label.current.style;
+      el.opacity = String(v);
+      el.transform = `translateY(${(1 - v) * 8}px)`;
+      el.filter = `blur(${(1 - v) * 6}px)`;
+      el.textShadow = `0 0 ${10 + 14 * beat}px rgba(255,196,122,${0.3 + 0.45 * beat}), 0 0 2px rgba(0,0,0,0.6)`;
+    }
     // the pools on the ground are emissive, so they have to be driven too
     if (pool.current) pool.current.opacity = 0.5 * f;
     if (spill.current) spill.current.opacity = 0.34 * f;
@@ -1565,10 +1557,27 @@ function LampPost({
             <sphereGeometry args={[1.15, 12, 12]} />
             <meshBasicMaterial transparent opacity={0} depthWrite={false} />
           </mesh>
+        </>
+      )}
 
-          {/* the words, set round the lamp head */}
-          <Html center position={[0, LAMP_H + 1.28, 0]} zIndexRange={[40, 0]} style={{ pointerEvents: "none" }}>
-            <CircleLabel text="CLICK HERE" radius={96} arc={128} />
+      {/* The halo and the words stay mounted on the first lamp and are faded
+          by `shown`, so they can ease out after the click instead of vanishing. */}
+      {first && (
+        <>
+          {/* a soft halo round the lantern, throbbing with the beat */}
+          <sprite ref={halo} position={[0, LAMP_H + 1.28, 0]} scale={[2.2, 2.2, 1]}>
+            <spriteMaterial map={decal} color="#ffc47a" transparent opacity={0} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
+          </sprite>
+
+          {/* the words, sitting just over the top of the glass */}
+          <Html center position={[0, LAMP_H + 2.15, 0]} zIndexRange={[40, 0]} style={{ pointerEvents: "none" }}>
+            <div
+              ref={label}
+              className="select-none whitespace-nowrap font-masthead text-[19px] tracking-[0.04em] text-glow-300"
+              style={{ opacity: 0 }}
+            >
+              click me
+            </div>
           </Html>
         </>
       )}
