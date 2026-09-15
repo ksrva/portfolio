@@ -10,6 +10,7 @@ import { Effect } from "postprocessing";
 import { makeRng } from "@/lib/rand";
 import { StreetGuide } from "./StreetGuide";
 import { AlleyGuide } from "./AlleyGuide";
+import { StreetMenu } from "./StreetMenu";
 import { WipView } from "./WipView";
 import { ALLEY, INK, LEFT_ROW, PAVEMENT_H, PAVEMENT_W, Pavement, RIGHT_ROW, STREET_END, STREET_HALF, StreetLamps, StreetSnow, Terrace, featureHover, placeOf, setAccentGlow, HOLD_T, INTRO_FIRST, INTRO_END } from "./buildings";
 import { ALLEY_CAM, ALLEY_LOOK, Alley, alleyFocus, alleyGlow, alleyLight } from "./Alley";
@@ -375,17 +376,30 @@ function AlleyMouth({ active, onEnter }: { active: boolean; onEnter: () => void 
   );
 }
 
-/* Watches for you drawing level with the gap, so the prompt can appear at
-   the right moment. The check runs in the frame loop but only calls back on
-   a crossing, so React re-renders twice a visit rather than sixty times a
+/** Which stretch of street you're standing on, relative to the gallery. */
+type Zone = "none" | "alley" | "past";
+
+/* One watcher rather than two, because the zones have to be mutually
+   exclusive: the alley prompt's range used to run well past the gap, so a
+   second independent check would have put two panels in the same spot at
+   the same time.
+
+   Runs in the frame loop but only calls back when you cross a boundary, so
+   React re-renders a couple of times a visit rather than sixty times a
    second. */
-function AlleyProximity({ onChange }: { onChange: (near: boolean) => void }) {
-  const was = useRef(false);
+function WalkZones({ onChange }: { onChange: (zone: Zone) => void }) {
+  const was = useRef<Zone>("none");
   useFrame(() => {
-    const near = walk.z < ALLEY.zNear + 7 && walk.z > ALLEY.zFar - 4;
-    if (near !== was.current) {
-      was.current = near;
-      onChange(near);
+    const z = walk.z;
+    const next: Zone =
+      z <= ALLEY.zFar - 1.5
+        ? "past"
+        : z < ALLEY.zNear + 7 && z > ALLEY.zFar
+          ? "alley"
+          : "none";
+    if (next !== was.current) {
+      was.current = next;
+      onChange(next);
     }
   });
   return null;
@@ -536,7 +550,7 @@ const WALK_FROM = -16;
     fog line at −65, leaving ~25 units — half the stroll — of empty street
     past the final door. Measured off the doors rather than fixed, so it
     follows if a seed ever moves a shop. */
-const WALK_PAST_LAST_DOOR = 11;
+const WALK_PAST_LAST_DOOR = 18;
 const LAST_DOOR_Z = DOORS.length ? Math.min(...DOORS.map((d) => d.z)) : -Infinity;
 const WALK_TO = Math.max(
   -STREET_END,
@@ -733,7 +747,7 @@ function Scene({
   sketches,
   canEnterAlley,
   onEnterAlley,
-  onNearAlley,
+  onZone,
   onWip,
 }: {
   clock: React.RefObject<{ t: number; ceiling: number }>;
@@ -745,7 +759,7 @@ function Scene({
   sketches: string[];
   canEnterAlley: boolean;
   onEnterAlley: () => void;
-  onNearAlley: (near: boolean) => void;
+  onZone: (zone: Zone) => void;
   onWip: (file: string) => void;
 }) {
   const ambient = useRef<THREE.AmbientLight>(null);
@@ -790,7 +804,7 @@ function Scene({
 
       <Alley ramp={ramp} sketches={sketches} onWip={onWip} />
       <AlleyMouth active={canEnterAlley} onEnter={onEnterAlley} />
-      <AlleyProximity onChange={onNearAlley} />
+      <WalkZones onChange={onZone} />
 
       <Snow />
       <Rig fly={fly} alley={alley} />
@@ -836,7 +850,9 @@ export default function StreetScene({ sketches }: { sketches: string[] }) {
   const router = useRouter();
   const [entering, setEntering] = useState(false);
   const [inAlley, setInAlley] = useState(false);
-  const [nearAlley, setNearAlley] = useState(false);
+  const [zone, setZone] = useState<Zone>("none");
+  const nearAlley = zone === "alley";
+  const pastGallery = zone === "past";
   const [galleryOpen, setGalleryOpen] = useState(false);
   /** which drawing's comparison is open, by filename; null for none */
   const [wipFile, setWipFile] = useState<string | null>(null);
@@ -850,6 +866,8 @@ export default function StreetScene({ sketches }: { sketches: string[] }) {
       )
     : undefined;
   const [guideDue, setGuideDue] = useState(false);
+  /** the menu asking the guide to open at a panel; a fresh id each time */
+  const [guideRequest, setGuideRequest] = useState<{ id: number; step: number }>();
   const [phase, setPhase] = useState<"dark" | "waiting" | "running" | "done">(
     alreadyLit ? "done" : "dark",
   );
@@ -878,7 +896,7 @@ export default function StreetScene({ sketches }: { sketches: string[] }) {
     setTimeout(() => setPhase("done"), (INTRO_END - HOLD_T) * 1000 + 400);
     // the street finishes lighting first, then the guide opens over it. The
     // lamps striking are the thing worth watching, so nothing covers them.
-    setTimeout(() => setGuideDue(true), (INTRO_END - HOLD_T) * 1000 + 500);
+    setTimeout(() => setGuideDue(true), (INTRO_END - HOLD_T) * 1000 + 150);
   };
 
   const walking = phase === "done";
@@ -1013,7 +1031,7 @@ export default function StreetScene({ sketches }: { sketches: string[] }) {
           sketches={sketches}
           canEnterAlley={walking && !entering && !inAlley}
           onEnterAlley={enterAlley}
-          onNearAlley={setNearAlley}
+          onZone={setZone}
           onWip={setWipFile}
         />
       </Canvas>
@@ -1078,6 +1096,32 @@ export default function StreetScene({ sketches }: { sketches: string[] }) {
         )}
       </AnimatePresence>
 
+      {/* Past the gallery there's nothing built yet, so say so rather than
+          let the street just run out. Not a dialog: it needs no dismissing
+          and nothing to click, and it clears itself the moment you turn
+          back. */}
+      <AnimatePresence>
+        {pastGallery && walking && !entering && !inAlley && (
+          <motion.div
+            key="under-construction"
+            className="pointer-events-none fixed bottom-16 left-1/2 z-[36] flex -translate-x-1/2 items-center gap-2.5 border-2 border-black bg-[#17120e]/95 px-4 py-2.5 font-masthead text-[0.95rem] leading-none text-paper sm:bottom-20"
+            style={{
+              boxShadow:
+                "inset 2px 2px 0 rgba(255,236,200,0.14), inset -2px -2px 0 rgba(0,0,0,0.55), 0 18px 40px rgba(0,0,0,0.5)",
+            }}
+            initial={{ opacity: 0, y: 14, scale: 0.94 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.96 }}
+            transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <span aria-hidden className="text-glow-400">
+              ⚠
+            </span>
+            Still Under Construction
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* The way back out of the alley — top left, the same corner every
           room uses, so it's where a visitor already expects it. */}
       <AnimatePresence>
@@ -1086,13 +1130,22 @@ export default function StreetScene({ sketches }: { sketches: string[] }) {
             key="leave-alley"
             type="button"
             onClick={leaveAlley}
-            className="fixed left-5 top-5 z-[36] border border-paper/20 bg-night-950/60 px-3 py-1.5 font-masthead text-[0.78rem] tracking-[0.02em] text-paper/70 backdrop-blur-md transition-colors duration-300 hover:text-paper sm:left-8 sm:top-8"
+            /* same panel as the "Take a peek" prompt, so every way out of
+               somewhere looks like the same control */
+            className="fixed left-5 top-5 z-[36] inline-flex items-center gap-2.5 border-2 border-black bg-[#17120e]/95 px-4 py-2.5 font-masthead text-[0.95rem] leading-none text-paper transition-colors duration-200 hover:bg-glow-500/20 sm:left-8 sm:top-8"
+            style={{
+              boxShadow:
+                "inset 2px 2px 0 rgba(255,236,200,0.14), inset -2px -2px 0 rgba(0,0,0,0.55), 0 18px 40px rgba(0,0,0,0.5)",
+            }}
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
           >
-            ← Back to the street
+            <span aria-hidden className="text-glow-400">
+              ←
+            </span>
+            Back to the street
           </motion.button>
         )}
       </AnimatePresence>
@@ -1111,10 +1164,21 @@ export default function StreetScene({ sketches }: { sketches: string[] }) {
         available={inAlley && !entering}
       />
 
+      {/* Not gated on the intro finishing, unlike the "?" — the menu is the
+          way out of here, so it shouldn't make anyone sit through the street
+          lighting up before it appears. It's there from the first frame. */}
+      <StreetMenu
+        available={!entering && !inAlley}
+        hidden={entering || inAlley}
+        onAbout={() => setGuideRequest({ id: Date.now(), step: 0 })}
+        onControls={() => setGuideRequest({ id: Date.now(), step: 1 })}
+      />
+
       <StreetGuide
         offer={guideDue}
         available={walking && !entering && !inAlley}
         hidden={entering || inAlley}
+        request={guideRequest}
       />
       </div>
     </div>

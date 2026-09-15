@@ -1429,10 +1429,10 @@ export const CAM_Z = -16;
 
 export const FIRST_LAMP_AT = 0.25; // the one lamp that lights on its own
 export const HOLD_T = 0.95; // clock parks here until the visitor clicks
-export const INTRO_FIRST = 1.3; // everything else starts after that click
-export const INTRO_PER_UNIT = 0.011; // seconds per unit further down the street
-export const INTRO_WIN_STEP = 0.105; // gap between one window and the next
-export const INTRO_WARMUP = 0.42; // how long one light takes to strike
+export const INTRO_FIRST = 1.15; // everything else starts after that click
+export const INTRO_PER_UNIT = 0.005; // seconds per unit further down the street
+export const INTRO_WIN_STEP = 0.04; // gap between one window and the next
+export const INTRO_WARMUP = 0.38; // how long one light takes to strike
 export const INTRO_END = INTRO_FIRST + 200 * INTRO_PER_UNIT + 26 * INTRO_WIN_STEP + INTRO_WARMUP;
 
 /** When a thing this far down the street should come on. */

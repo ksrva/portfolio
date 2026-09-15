@@ -125,10 +125,19 @@ export function ProjectsView() {
         <AnimatePresence>
           {lit && (
             <motion.div className="pointer-events-auto inline-block" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.9 }}>
+              {/* same panel as the street's prompts, so every way out of
+                  somewhere looks like the same control */}
               <Link
                 href="/"
-                className={`text-[0.88rem] underline decoration-paper/25 underline-offset-[5px] transition-colors duration-300 hover:text-paper ${META}`}
+                className="inline-flex items-center gap-2.5 border-2 border-black bg-[#17120e]/95 px-4 py-2.5 font-masthead text-[0.95rem] leading-none text-paper transition-colors duration-200 hover:bg-glow-500/20"
+                style={{
+                  boxShadow:
+                    "inset 2px 2px 0 rgba(255,236,200,0.14), inset -2px -2px 0 rgba(0,0,0,0.55), 0 18px 40px rgba(0,0,0,0.5)",
+                }}
               >
+                <span aria-hidden className="text-glow-400">
+                  ←
+                </span>
                 Back to the street
               </Link>
             </motion.div>

@@ -39,6 +39,7 @@ export function StreetGuide({
   offer,
   available,
   hidden,
+  request,
 }: {
   /** flips true when the box should open by itself (first arrival only) */
   offer: boolean;
@@ -46,6 +47,8 @@ export function StreetGuide({
   available: boolean;
   /** shut everything, e.g. while flying into a shop */
   hidden: boolean;
+  /** the menu asking for a panel: a new id opens it at the given step */
+  request?: { id: number; step: number };
 }) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(0);
@@ -65,6 +68,21 @@ export function StreetGuide({
     }, 0);
     return () => clearTimeout(id);
   }, [offer]);
+
+  /* Opened from the menu. The id is what changes, not a boolean, so asking
+     twice for the same panel still works. Set inside a timeout for the same
+     reason the offer effect is: calling setState straight from an effect
+     body triggers cascading renders and is flagged. */
+  const lastRequest = useRef(0);
+  useEffect(() => {
+    if (!request || request.id === lastRequest.current) return;
+    const t = setTimeout(() => {
+      lastRequest.current = request.id;
+      setStep(request.step);
+      setOpen(true);
+    }, 0);
+    return () => clearTimeout(t);
+  }, [request]);
 
   const shown = open && !hidden;
 
@@ -114,7 +132,7 @@ export function StreetGuide({
               aria-modal="true"
               aria-labelledby="street-guide-title"
               onClick={(e) => e.stopPropagation()}
-              className="relative w-full max-w-[27rem] border-2 border-black bg-[#17120e]/95 px-6 pb-5 pt-5"
+              className="relative w-full max-w-[32rem] border-2 border-black bg-[#17120e]/95 px-6 pb-5 pt-5"
               style={{ boxShadow: `${BEVEL}, 0 22px 60px rgba(0,0,0,0.55)` }}
               initial={{ opacity: 0, scale: 0.94 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -146,24 +164,54 @@ export function StreetGuide({
                 {step === 0 ? (
                   <motion.div
                     key="hello"
-                    className={`mt-5 space-y-3 text-[0.9rem] leading-[1.6] ${BODY}`}
+                    className="mt-5 flex flex-col gap-4 sm:flex-row sm:gap-5"
                     initial={{ opacity: 0, x: 12 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -12 }}
                     transition={{ duration: 0.25, ease: EASE }}
                   >
-                    <p>
-                      Hi! I&rsquo;m <span className={NAME}>Kam</span>, welcome to my (WIP)
-                      portfolio!
-                    </p>
-                    <p>
-                      I&rsquo;m a Computer Science &amp; Finance student at the University of
-                      Waterloo, graduating in 2028.
-                    </p>
-                    <p>
-                      In my free time I love running, Taekwondo, singing and sketching!
-                    </p>
-                    <p className={NAME}>Take a look around!</p>
+                    {/* A box rather than a circle: a circle throws away the
+                        corners, and at this size that was most of the photo.
+                        No fixed height and no object-fit, so the frame simply
+                        takes the picture's own proportions. Centred when the
+                        card stacks on a narrow screen, left-aligned beside the
+                        text once there's room. */}
+                    {/* The frame takes the row's full height (a flex row
+                        stretches its children to the tallest, which here is
+                        the text), and the picture covers it rather than
+                        sitting at its natural size and leaving dead space
+                        under itself.
+
+                        min-h matters for the stacked case: once the card
+                        turns into a column, stretch applies to width instead
+                        of height, so without it the frame would have no
+                        height and the absolute image would vanish. */}
+                    <div
+                      className="relative mx-auto min-h-[12rem] w-36 shrink-0 overflow-hidden border-2 border-black sm:mx-0"
+                      style={{ boxShadow: BEVEL }}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src="/profile.jpg"
+                        alt="Kam"
+                        className="absolute inset-0 h-full w-full object-cover"
+                      />
+                    </div>
+
+                    <div className={`space-y-3 text-[0.9rem] leading-[1.6] ${BODY}`}>
+                      <p>
+                        Hi! I&rsquo;m <span className={NAME}>Kam</span>, welcome to my (WIP)
+                        portfolio!
+                      </p>
+                      <p>
+                        I&rsquo;m a Computer Science &amp; Finance student at the University of
+                        Waterloo, graduating in 2028.
+                      </p>
+                      <p>
+                        In my free time I love running, Taekwondo, singing and sketching!
+                      </p>
+                      <p className={NAME}>Take a look around!</p>
+                    </div>
                   </motion.div>
                 ) : (
                   <motion.ul
