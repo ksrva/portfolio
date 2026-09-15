@@ -171,43 +171,14 @@ export type Project = {
   repo?: string;
 };
 
-export const projects: readonly Project[] = [
-  {
-    title: "LLM Adjudicator",
-    year: "2026",
-    kind: "Research tool",
-    blurb:
-      "A judge that resolves the record pairs a probabilistic matcher can't decide alone — with calibration checks so it never quietly becomes the whole pipeline.",
-    stack: ["Python", "Claude API", "DuckDB"],
-    repo: "https://github.com/",
-  },
-  {
-    title: "Linkage Bench",
-    year: "2026",
-    kind: "Evaluation harness",
-    blurb:
-      "Reproducible benchmarks for entity resolution: fixed splits, per-block precision/recall, and a regression gate that fails the build when a matcher degrades.",
-    stack: ["Python", "Polars", "GitHub Actions"],
-    repo: "https://github.com/",
-  },
-  {
-    title: "Tigris",
-    year: "2025",
-    kind: "Product / analysis",
-    blurb:
-      "Market and risk analysis for an early-stage venture, plus the internal tooling that kept the model and the memo in sync.",
-    stack: ["TypeScript", "Next.js"],
-  },
-  {
-    title: "This Website",
-    year: "2026",
-    kind: "Playground",
-    blurb:
-      "A night street you walk down: a hand-built three.js town, generated facade by facade, with two shops you can go inside.",
-    stack: ["Next.js", "three.js", "React Three Fiber"],
-    repo: "https://github.com/",
-  },
-] as const;
+/* Empty on purpose. The entries that were here were invented — placeholder
+   titles with repo links pointing at a bare github.com — and a portfolio
+   claiming work that doesn't exist is worse than one admitting it's still
+   being built. The room says so until there's something real to hang in it.
+
+   Adding one back is just an entry here: the room renders the ledger again
+   the moment this array isn't empty. */
+export const projects: readonly Project[] = [] as const;
 
 /** Writing / notes. Delete the section in page.tsx if you don't want it. */
 export type Post = {

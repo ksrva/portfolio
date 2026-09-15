@@ -165,9 +165,27 @@ export function ProjectsView() {
             animate={{ opacity: phase === "cards" ? 1 : 0 }}
             transition={{ duration: 0.8 }}
           >
-            {ENTRIES.map(({ project, year }, i) => (
-              <Entry key={project.title} project={project} year={year} i={i} />
-            ))}
+            {ENTRIES.length > 0 ? (
+              ENTRIES.map(({ project, year }, i) => (
+                <Entry key={project.title} project={project} year={year} i={i} />
+              ))
+            ) : (
+              /* Nothing real to show yet, so say it in the same panel the
+                 street uses past the gallery rather than leave the room
+                 blank. Restores itself the moment content.ts has an entry. */
+              <div
+                className="inline-flex items-center gap-2.5 border-2 border-black bg-[#17120e]/95 px-4 py-2.5 font-masthead text-[0.95rem] leading-none text-paper"
+                style={{
+                  boxShadow:
+                    "inset 2px 2px 0 rgba(255,236,200,0.14), inset -2px -2px 0 rgba(0,0,0,0.55), 0 18px 40px rgba(0,0,0,0.5)",
+                }}
+              >
+                <span aria-hidden className="text-glow-400">
+                  ⚠
+                </span>
+                Still under construction
+              </div>
+            )}
           </motion.div>
         </div>
       </div>

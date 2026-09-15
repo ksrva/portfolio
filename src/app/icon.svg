@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="KS">
+  <!--
+    The site's own palette: the panels' near-black ground, the paper cream of
+    the type, and the hard black edge every card and prompt carries.
+
+    Drawn for 16px first. A period between the letters vanishes at that size
+    and only widens the gap, so it's KS set tight.
+
+    Both letters share one cap height, 18 to 46, and the K is symmetric about
+    the vertical centre — its arms meet the stem at y=32, so the counter above
+    and below match. The S is pushed to the same extents with deeper control
+    points, since a round letter drawn to the same box reads smaller than a
+    straight-sided one.
+
+    Ink spans x 14 to 50, which centres the pair on 32.
+  -->
+  <rect width="64" height="64" rx="12" fill="#17120e"/>
+  <rect x="2" y="2" width="60" height="60" rx="10.5" fill="none" stroke="#000" stroke-width="4"/>
+  <rect x="5.5" y="5.5" width="53" height="53" rx="8.5" fill="none" stroke="#f4ecdc" stroke-opacity="0.14" stroke-width="1.5"/>
+
+  <g fill="none" stroke="#f4ecdc" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+    <!-- K: stem, then both arms as one stroke meeting it at the midline -->
+    <path d="M17 18v28"/>
+    <path d="M28.5 18 17.5 32 28.5 46"/>
+    <!-- S: one continuous curve, same top and bottom as the K -->
+    <path d="M46.6 24c0-7-10.2-8.5-10.2.8 0 7 10.2 7.6 10.2 14 0 8.5-9.8 9.5-10.2 2.4"/>
+  </g>
+</svg>

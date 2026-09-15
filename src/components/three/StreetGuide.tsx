@@ -26,8 +26,7 @@ const STEPS: { keys: string[]; text: string }[] = [
   { keys: ["↑", "↓"], text: "Walk down the street, and back again." },
   { keys: ["←", "→"], text: "Step across the road." },
   { keys: ["Mouse"], text: "Turn and look, not everything is straight ahead :D" },
-  // the keycap supplies the first word, so the row reads as one sentence
-  { keys: ["Click"], text: "on a storefront to step inside" },
+  { keys: ["Click"], text: "Step inside a storefront." },
   { keys: ["Click", "the lamp"], text: "Light up the room once you're in." },
 ];
 

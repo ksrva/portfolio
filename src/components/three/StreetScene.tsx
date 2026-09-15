@@ -1117,7 +1117,7 @@ export default function StreetScene({ sketches }: { sketches: string[] }) {
             <span aria-hidden className="text-glow-400">
               ⚠
             </span>
-            Still Under Construction
+            Still under construction
           </motion.div>
         )}
       </AnimatePresence>
