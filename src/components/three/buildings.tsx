@@ -1301,6 +1301,9 @@ function makeRow(
   featureSkip = 0,
   /** slug + fascia text for the one shop built out in full */
   featured?: { id: string; sign: string },
+  /** leave a walkable gap after this index — see ALLEY below */
+  alleyAfter?: number,
+  alleyWidth = 0,
 ): Facade[] {
   const rng = makeRng(seed);
   // Three families only: deep dark red, deep dark blue, deep dark brown.
@@ -1356,14 +1359,34 @@ function makeRow(
       accent: rng.pick(["#8f2f26", "#1f4a45", "#2f5a52", "#6b4a2a"]),
       seed: seed * 100 + i,
     });
-    x += w + rng.range(0.2, 0.9);
+    // The rng call stays put whether or not an alley follows, so widening a
+    // gap shifts the buildings after it without changing any of their sizes.
+    x += w + rng.range(0.2, 0.9) + (i === alleyAfter ? alleyWidth : 0);
   }
   return out;
 }
 
+/* The alley: a gap wide enough to walk into, opened immediately past the
+   Projects shop. Placed there on purpose — by then you've passed both
+   doors and the street is running out, so it's the last thing left to
+   find rather than a detour taken before you've seen the shops. */
+const ALLEY_W = 5;
+const ALLEY_AFTER = 3; // index of the Projects building in RIGHT_ROW
+
 /* Long enough that the far end is pure fog rather than a visible stop. */
 export const LEFT_ROW = makeRow(717, 16, 1, 20, 1, { id: "experience", sign: "Experience" });
-export const RIGHT_ROW = makeRow(919, 16, -1, 20, 1, { id: "projects", sign: "Projects" });
+export const RIGHT_ROW = makeRow(919, 16, -1, 20, 1, { id: "projects", sign: "Projects" }, ALLEY_AFTER, ALLEY_W);
+
+/** The mouth of the alley in world space. Measured off the generated row
+    rather than written down, so it follows if a seed or a width changes. */
+export const ALLEY = (() => {
+  const a = RIGHT_ROW[ALLEY_AFTER];
+  const b = RIGHT_ROW[ALLEY_AFTER + 1];
+  // |x| because the right row is generated mirrored; world z is the negative
+  const zNear = -(Math.abs(a.x) + a.w / 2);
+  const zFar = -(Math.abs(b.x) - b.w / 2);
+  return { zNear, zFar, z: (zNear + zFar) / 2, width: zNear - zFar };
+})();
 
 /* Where the walk stops — deliberately several buildings short of the end of
    the rows. The town is built long so the far end reads as fog rather than a
@@ -1407,8 +1430,8 @@ export const CAM_Z = -16;
 export const FIRST_LAMP_AT = 0.25; // the one lamp that lights on its own
 export const HOLD_T = 0.95; // clock parks here until the visitor clicks
 export const INTRO_FIRST = 1.3; // everything else starts after that click
-export const INTRO_PER_UNIT = 0.016; // seconds per unit further down the street
-export const INTRO_WIN_STEP = 0.2; // gap between one window and the next
+export const INTRO_PER_UNIT = 0.011; // seconds per unit further down the street
+export const INTRO_WIN_STEP = 0.105; // gap between one window and the next
 export const INTRO_WARMUP = 0.42; // how long one light takes to strike
 export const INTRO_END = INTRO_FIRST + 200 * INTRO_PER_UNIT + 26 * INTRO_WIN_STEP + INTRO_WARMUP;
 

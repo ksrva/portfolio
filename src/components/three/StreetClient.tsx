@@ -16,6 +16,6 @@ const StreetScene = dynamic(() => import("./StreetScene"), {
   ),
 });
 
-export function StreetClient() {
-  return <StreetScene />;
+export function StreetClient({ sketches }: { sketches: string[] }) {
+  return <StreetScene sketches={sketches} />;
 }

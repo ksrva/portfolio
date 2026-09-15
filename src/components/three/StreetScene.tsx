@@ -9,7 +9,10 @@ import { Bloom, EffectComposer, Vignette } from "@react-three/postprocessing";
 import { Effect } from "postprocessing";
 import { makeRng } from "@/lib/rand";
 import { StreetGuide } from "./StreetGuide";
-import { INK, LEFT_ROW, PAVEMENT_H, PAVEMENT_W, Pavement, RIGHT_ROW, STREET_END, STREET_HALF, StreetLamps, StreetSnow, Terrace, featureHover, placeOf, setAccentGlow, HOLD_T, INTRO_FIRST, INTRO_END } from "./buildings";
+import { AlleyGuide } from "./AlleyGuide";
+import { WipView } from "./WipView";
+import { ALLEY, INK, LEFT_ROW, PAVEMENT_H, PAVEMENT_W, Pavement, RIGHT_ROW, STREET_END, STREET_HALF, StreetLamps, StreetSnow, Terrace, featureHover, placeOf, setAccentGlow, HOLD_T, INTRO_FIRST, INTRO_END } from "./buildings";
+import { ALLEY_CAM, ALLEY_LOOK, Alley, alleyFocus, alleyGlow, alleyLight } from "./Alley";
 
 /* ═══════════════════════════════════════════════════════════════════
    A night street, built rather than drawn — and then deliberately
@@ -343,6 +346,51 @@ function Shopfront({ d, onEnter }: { d: Door; onEnter: (d: Door) => void }) {
   );
 }
 
+/* The way in. Nothing is drawn — the gap between the buildings is the only
+   cue there is, which is the point. An invisible pane across the mouth
+   catches the click; it can't be `visible={false}`, because three skips
+   invisible objects when raycasting and it would never be hit. */
+function AlleyMouth({ active, onEnter }: { active: boolean; onEnter: () => void }) {
+  return (
+    <mesh
+      position={[STREET_HALF - 0.25, 3, ALLEY.z]}
+      rotation={[0, -Math.PI / 2, 0]}
+      onPointerOver={(e) => {
+        if (!active) return;
+        e.stopPropagation();
+        document.body.style.cursor = "pointer";
+      }}
+      onPointerOut={() => {
+        document.body.style.cursor = "";
+      }}
+      onClick={(e) => {
+        if (!active) return;
+        e.stopPropagation();
+        onEnter();
+      }}
+    >
+      <planeGeometry args={[ALLEY.width, 6]} />
+      <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+    </mesh>
+  );
+}
+
+/* Watches for you drawing level with the gap, so the prompt can appear at
+   the right moment. The check runs in the frame loop but only calls back on
+   a crossing, so React re-renders twice a visit rather than sixty times a
+   second. */
+function AlleyProximity({ onChange }: { onChange: (near: boolean) => void }) {
+  const was = useRef(false);
+  useFrame(() => {
+    const near = walk.z < ALLEY.zNear + 7 && walk.z > ALLEY.zFar - 4;
+    if (near !== was.current) {
+      was.current = near;
+      onChange(near);
+    }
+  });
+  return null;
+}
+
 function Snow({ count = 3200 }: { count?: number }) {
   const ref = useRef<THREE.Points>(null!);
   const { geometry, drift } = useMemo(() => {
@@ -453,6 +501,9 @@ function IntroClock({
     // finials, baubles and berries are unlit materials — they need driving
     // too, or they glow through the dark opening
     setAccentGlow(e);
+    // the alley's lantern comes up with everything else, so the gap is
+    // already glowing by the time the street can be walked
+    alleyGlow.v = e;
   });
   /* eslint-enable react-hooks/immutability */
   return null;
@@ -463,10 +514,13 @@ function IntroClock({
 type Fly = { t: number; running: boolean; dest: Door | null };
 
 /* ── Walking down the street ──────────────────────────────────────────
-   Scroll is the pace: the page is made tall enough to cover the town, and
-   how far down it you are is how far along you've walked. The Rig reads
-   this each frame rather than re-rendering on scroll — at 60fps a React
-   state update per wheel event would be the most expensive thing here. */
+   Arrow keys walk, the mouse turns your head. It was scroll-as-pace, which
+   read as scrubbing a video rather than walking, and — worse — tied the
+   look to a ±23° nudge, which meant anything at right angles to the street
+   simply could not be seen. Keys and a real head turn fix both.
+
+   The Rig reads this each frame rather than re-rendering: at 60fps a React
+   state update per keypress would be the most expensive thing here. */
 
 /** Where you stand before walking, and the last stride the street allows.
     STREET_END holds back from the end of the side rows, but the skyline
@@ -476,21 +530,56 @@ type Fly = { t: number; running: boolean; dest: Door | null };
     it still reads as the town beyond rather than a wall in front of you. */
 const SKYLINE_CLEARANCE = 40;
 const WALK_FROM = -16;
-const WALK_TO = Math.max(-STREET_END, SKYLINE_Z + SKYLINE_CLEARANCE);
-const WALK_SPAN = WALK_FROM - WALK_TO;
-/** Scroll pixels per world unit. Higher is a slower, more deliberate pace. */
-const PX_PER_UNIT = 30;
-/* How far the cursor turns your head. Applied to the point you're looking at
-   62 units ahead, so 26 across is roughly a 23° glance — enough to face a
-   shopfront as you pass it without the street sliding out of frame. */
-const LOOK_X = 26;
-const LOOK_Y = 6;
-export const WALK_PAGE_PX = WALK_SPAN * PX_PER_UNIT;
+/** How far past the last shopfront the street stays walkable.
 
-/** 0 at the near end, 1 at the far. Written by the page, read by the Rig. */
-const walk = { to: 0, at: 0, dist: 0 };
+    Both shops sit inside the first 40 units, but the walk used to run to the
+    fog line at −65, leaving ~25 units — half the stroll — of empty street
+    past the final door. Measured off the doors rather than fixed, so it
+    follows if a seed ever moves a shop. */
+const WALK_PAST_LAST_DOOR = 11;
+const LAST_DOOR_Z = DOORS.length ? Math.min(...DOORS.map((d) => d.z)) : -Infinity;
+const WALK_TO = Math.max(
+  -STREET_END,
+  SKYLINE_Z + SKYLINE_CLEARANCE,
+  LAST_DOOR_Z - WALK_PAST_LAST_DOOR,
+);
+/** World units per second, walking and stepping sideways. */
+const WALK_SPEED = 11;
+const STRAFE_SPEED = 7;
+/** How far the mouse turns your head, as a real yaw rather than a sideways
+    offset on a distant point. It has to reach past 80°: the alley opens at
+    a right angle to the street, and the old ±23° glance is precisely why
+    nobody could find it. */
+const MAX_YAW = 1.45; // ~83°
+/* Yaw only — no pitch. Looking up and down in a street you're walking down
+   buys nothing and costs the horizon: tilt it and the whole town leans. */
+/** How far ahead the look point is thrown. */
+const LOOK_DIST = 40;
+/** How far either side of the centre line you may step — the kerbs. */
+const STRAFE_LIMIT = STREET_HALF - PAVEMENT_W - 0.6;
 
-function Rig({ fly }: { fly: React.RefObject<Fly> }) {
+/** The arrow keys currently down, as a direction. Written by the page. */
+const move = { fwd: 0, side: 0 };
+const WALK_KEYS = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
+
+/** Where you're standing, and how far you've walked — the gait runs off
+    distance covered, so it keeps time whichever way you're moving. */
+const walk = { z: WALK_FROM, x: 0, dist: 0 };
+
+/** Scratch for the alley pose — allocated once, not per frame. */
+const ALLEY_AIM = new THREE.Vector3();
+const ALLEY_POS = new THREE.Vector3();
+
+/** Whether you're down the alley, and how far the pose has blended in. */
+type AlleyState = { want: boolean; t: number };
+
+function Rig({
+  fly,
+  alley,
+}: {
+  fly: React.RefObject<Fly>;
+  alley: React.RefObject<AlleyState>;
+}) {
   const { camera, pointer } = useThree();
   const target = useRef(new THREE.Vector3(0, 9, -78));
   const from = useRef(new THREE.Vector3());
@@ -501,7 +590,10 @@ function Rig({ fly }: { fly: React.RefObject<Fly> }) {
   // so easing the offsets rather than the whole point keeps the look from
   // dragging behind the camera as you walk
   const aimX = useRef(0);
-  const aimY = useRef(0);
+  /* Where the walk alone would put you. Held apart from camera.position so
+     the alley can blend between the street pose and the alley pose without
+     fighting the easing that produced it. */
+  const pos = useRef(new THREE.Vector3(0, 6.5, WALK_FROM));
 
   /* eslint-disable react-hooks/immutability */
   useFrame((_, dt) => {
@@ -530,42 +622,102 @@ function Rig({ fly }: { fly: React.RefObject<Fly> }) {
       return;
     }
 
+    // ── the alley ──────────────────────────────────────────────────
+    // A detour, not a destination: the pose blends in and back out again, so
+    // leaving puts you down exactly where you were standing.
+    const a = alley.current;
+    a.t += ((a.want ? 1 : 0) - a.t) * Math.min(1, dt * 1.25);
+    /* Smootherstep, not smoothstep, and slower. Turning in swings the look
+       point from 62 units down the street to one inside the alley — close to
+       a right angle — and on the old curve that arrived as a whip. Flatter
+       ends make it read as turning your head to look down a gap. */
+    const s = a.t;
+    const inAlley = s * s * s * (s * (s * 6 - 15) + 10);
+    alleyLight.v = inAlley;
+
+    // and a step closer still, if a sheet has been clicked
+    alleyFocus.t += ((alleyFocus.want ? 1 : 0) - alleyFocus.t) * Math.min(1, dt * 2.4);
+    const ft = alleyFocus.t;
+    const focus = ft * ft * ft * (ft * (ft * 6 - 15) + 10);
+
     // ── the walk ───────────────────────────────────────────────────
-    // Ease toward the scrolled-to position rather than snapping: the lag is
-    // what gives a stride weight when you start and stop.
-    const before = walk.at;
-    walk.at += (walk.to - walk.at) * (1 - Math.pow(0.05, dt));
-    const moved = Math.abs(walk.at - before);
-    walk.dist += moved;
+    // Velocity, not a target position: holding a key should keep you moving
+    // and letting go should stop you, which an ease-toward-a-point can't
+    // express. Frozen once you're down the alley — the street is behind you.
+    let moved = 0;
+    if (a.t < 0.5) {
+      const z0 = walk.z;
+      const x0 = walk.x;
+      // forward is −z, and the ends of the street are hard stops
+      walk.z = Math.min(WALK_FROM, Math.max(WALK_TO, walk.z - move.fwd * WALK_SPEED * dt));
+      walk.x = Math.min(STRAFE_LIMIT, Math.max(-STRAFE_LIMIT, walk.x + move.side * STRAFE_SPEED * dt));
+      moved = Math.hypot(walk.z - z0, walk.x - x0);
+      walk.dist += moved;
+    }
 
     // Speed drives how much the gait shows — standing still, it settles.
-    const gait = Math.min(1, moved / (dt || 0.016) / 4);
+    const gait = Math.min(1, moved / (dt || 0.016) / 6);
     // two footfalls per stride, so the vertical bob runs at twice the sway
     const step = walk.dist * 0.42;
     const bob = Math.sin(step * 2) * 0.13 * gait;
     const sway = Math.sin(step) * 0.35 * gait;
-    const roll = Math.sin(step) * 0.006 * gait;
 
-    const z = WALK_FROM - walk.at * WALK_SPAN;
-    camera.position.z += (z - camera.position.z) * Math.min(1, dt * 4);
-    // The cursor turns your head, it doesn't move your feet — so the body
-    // only leans with it, and the look does the rest.
-    camera.position.x += (pointer.x * 0.9 + sway - camera.position.x) * k;
-    camera.position.y += (6.5 + pointer.y * 0.45 + bob - camera.position.y) * k;
+    // the body follows the feet only; the mouse no longer drags you sideways
+    pos.current.z += (walk.z - pos.current.z) * Math.min(1, dt * 6);
+    pos.current.x += (walk.x + sway - pos.current.x) * k;
+    pos.current.y += (6.5 + bob - pos.current.y) * k;
 
-    const turn = Math.min(1, dt * 2.6);
-    aimX.current += (pointer.x * LOOK_X - aimX.current) * turn;
-    aimY.current += (pointer.y * LOOK_Y - aimY.current) * turn;
+    const turn = Math.min(1, dt * 3.2);
+    aimX.current += (pointer.x * MAX_YAW - aimX.current) * turn;
 
-    // look ahead down the street from wherever you're standing, offset by
-    // wherever you're looking
+    /* A direction rather than a sideways offset on a fixed point ahead:
+       an offset can only ever lean the view a few degrees, where a yaw
+       turns all the way to the shopfronts and to what sits between them.
+
+       The look point stays exactly at eye height, so the view is level by
+       construction — there is no pitch to accumulate and nothing that can
+       leave you facing the sky or the cobbles. */
+    const yaw = aimX.current;
     target.current.set(
-      camera.position.x + aimX.current + sway * 0.4,
-      9 + aimY.current,
-      camera.position.z - 62,
+      pos.current.x + Math.sin(yaw) * LOOK_DIST,
+      pos.current.y,
+      pos.current.z - Math.cos(yaw) * LOOK_DIST,
     );
-    camera.lookAt(target.current);
-    camera.rotation.z = roll;
+
+    if (inAlley > 0.001) {
+      // Inside, the cursor barely moves the view. The pictures are hung to
+      // face where you stand, so there's nothing to hunt for — and a wide
+      // swing in a space this narrow just makes it hard to hold still.
+      /* The wall runs along x now, not z, so the cursor pans along it — and
+         it's worth a little more travel than before, because the cluster is
+         wider than the view is. */
+      ALLEY_AIM.set(
+        ALLEY_LOOK.x + pointer.x * 1.7,
+        ALLEY_LOOK.y,
+        ALLEY_LOOK.z,
+      );
+      ALLEY_POS.copy(ALLEY_CAM);
+
+      /* Stepping up to a sheet is the same pose carried further, not a mode
+         of its own — which is why backing out of one lands you exactly where
+         you were standing, and why the cursor stops panning once you're in
+         front of it. */
+      if (focus > 0.001) {
+        ALLEY_POS.lerp(alleyFocus.pos, focus);
+        ALLEY_AIM.lerp(alleyFocus.look, focus);
+      }
+
+      camera.position.lerpVectors(pos.current, ALLEY_POS, inAlley);
+      look.current.lerpVectors(target.current, ALLEY_AIM, inAlley);
+    } else {
+      camera.position.copy(pos.current);
+      look.current.copy(target.current);
+    }
+    camera.lookAt(look.current);
+    // Level, always. lookAt against world up already leaves no roll; this
+    // makes sure nothing downstream reintroduces any. The gait now shows in
+    // the bob and the sway of the body alone, which is where it belongs.
+    camera.rotation.z = 0;
   });
   /* eslint-enable react-hooks/immutability */
   return null;
@@ -577,12 +729,24 @@ function Scene({
   onPrompt,
   fly,
   onEnter,
+  alley,
+  sketches,
+  canEnterAlley,
+  onEnterAlley,
+  onNearAlley,
+  onWip,
 }: {
   clock: React.RefObject<{ t: number; ceiling: number }>;
   prompt: boolean;
   onPrompt: () => void;
   fly: React.RefObject<Fly>;
   onEnter: (d: Door) => void;
+  alley: React.RefObject<AlleyState>;
+  sketches: string[];
+  canEnterAlley: boolean;
+  onEnterAlley: () => void;
+  onNearAlley: (near: boolean) => void;
+  onWip: (file: string) => void;
 }) {
   const ambient = useRef<THREE.AmbientLight>(null);
   const moon = useRef<THREE.DirectionalLight>(null);
@@ -624,8 +788,12 @@ function Scene({
         <meshToonMaterial map={cobbles} color="#e2eaf6" gradientMap={ramp} />
       </mesh>
 
+      <Alley ramp={ramp} sketches={sketches} onWip={onWip} />
+      <AlleyMouth active={canEnterAlley} onEnter={onEnterAlley} />
+      <AlleyProximity onChange={onNearAlley} />
+
       <Snow />
-      <Rig fly={fly} />
+      <Rig fly={fly} alley={alley} />
       <IntroClock clock={clock} ambient={ambient} moon={moon} />
 
       <EffectComposer>
@@ -646,9 +814,14 @@ function Scene({
    forever once you'd seen it. */
 let streetLit = false;
 
-const GREETING = "Hello, I'm Kam";
+/* Whether the gallery has introduced itself yet this page-load. Same reasoning
+   as streetLit: it survives client-side navigation to a shop and back, but
+   dies on a real reload — so you're greeted once, not every single time you
+   duck down the alley. */
+let galleryGreeted = false;
 
-export default function StreetScene() {
+
+export default function StreetScene({ sketches }: { sketches: string[] }) {
   // ceiling gates the clock: 0 while the name types, HOLD_T once the first
   // lamp may strike, then unbounded once the visitor clicks
   // The intro is a first-arrival thing. Coming back from a shop should drop
@@ -659,29 +832,43 @@ export default function StreetScene() {
     ceiling: alreadyLit ? Number.POSITIVE_INFINITY : 0,
   });
   const fly = useRef<Fly>({ t: 0, running: false, dest: null });
+  const alley = useRef<AlleyState>({ want: false, t: 0 });
   const router = useRouter();
   const [entering, setEntering] = useState(false);
+  const [inAlley, setInAlley] = useState(false);
+  const [nearAlley, setNearAlley] = useState(false);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  /** which drawing's comparison is open, by filename; null for none */
+  const [wipFile, setWipFile] = useState<string | null>(null);
+
+  /* Its photo, matched on the drawing's own base name. Deliberately not
+     "the first file ending -ref": with more than one pair in the folder
+     that hands every drawing the same photo. */
+  const wipReference = wipFile
+    ? sketches.find((f) =>
+        f.toLowerCase().startsWith(`${wipFile.replace(/\.[^.]+$/, "").toLowerCase()}-ref.`),
+      )
+    : undefined;
   const [guideDue, setGuideDue] = useState(false);
-  const [typed, setTyped] = useState(alreadyLit ? GREETING.length : 0);
-  const [phase, setPhase] = useState<"typing" | "waiting" | "running" | "done">(
-    alreadyLit ? "done" : "typing",
+  const [phase, setPhase] = useState<"dark" | "waiting" | "running" | "done">(
+    alreadyLit ? "done" : "dark",
   );
 
-  useEffect(() => {
-    if (typed >= GREETING.length) return;
-    const id = setTimeout(() => setTyped((n) => n + 1), typed === 0 ? 700 : 78);
-    return () => clearTimeout(id);
-  }, [typed]);
+  /* A beat of darkness, then one lamp — and only one — comes on by itself
+     and waits to be clicked.
 
-  // once the name is written, let one lamp — and only one — come on
+     A name used to type itself out here first, and the lamp waited on it.
+     The lamp alone says "something is about to happen" without spelling it
+     out, so the wait is now just a held beat rather than a queue behind a
+     sentence. */
   useEffect(() => {
-    if (alreadyLit || typed < GREETING.length) return;
+    if (alreadyLit) return;
     const id = setTimeout(() => {
       clock.current.ceiling = HOLD_T;
       setPhase("waiting");
-    }, 550);
+    }, 900);
     return () => clearTimeout(id);
-  }, [typed, alreadyLit]);
+  }, [alreadyLit]);
 
   const start = () => {
     if (phase !== "waiting") return;
@@ -689,36 +876,108 @@ export default function StreetScene() {
     streetLit = true;
     setPhase("running");
     setTimeout(() => setPhase("done"), (INTRO_END - HOLD_T) * 1000 + 400);
-    // the guide opens while the last windows are still coming on, so it's
-    // been read by the time the street can be walked
-    setTimeout(() => setGuideDue(true), (INTRO_END - HOLD_T) * 1000 - 1100);
+    // the street finishes lighting first, then the guide opens over it. The
+    // lamps striking are the thing worth watching, so nothing covers them.
+    setTimeout(() => setGuideDue(true), (INTRO_END - HOLD_T) * 1000 + 500);
   };
 
-  const centred = phase === "typing" || phase === "waiting";
   const walking = phase === "done";
 
-  /* Scroll is read straight off the window each frame the browser offers
-     one, and written to the module-level `walk` the Rig polls. Deliberately
-     not React state: this fires on every wheel tick, and re-rendering the
-     whole scene graph for a camera nudge would cost far more than the walk. */
+  /* Down the alley and back. Nothing is routed — you never leave the street,
+     which is what keeps it a secret rather than a URL someone can guess. */
+  const enterAlley = () => {
+    alley.current.want = true;
+    setInAlley(true);
+    // let the walk-in finish before the card opens over it — arriving to a
+    // dialog you haven't seen the room behind is disorienting
+    if (!galleryGreeted) {
+      galleryGreeted = true;
+      setTimeout(() => setGalleryOpen(true), 950);
+    }
+  };
+  const leaveAlley = () => {
+    alley.current.want = false;
+    alleyFocus.want = false;
+    alleyFocus.id = "";
+    setGalleryOpen(false);
+    setWipFile(null);
+    setInAlley(false);
+  };
+
+  useEffect(() => {
+    if (!inAlley) return;
+    /* Escape backs out one step at a time — card, then sheet, then the alley
+       itself. One listener with an explicit order rather than one per layer:
+       separate window listeners would resolve by registration order, which is
+       no way to decide what a keypress means. */
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (wipFile) {
+        setWipFile(null);
+        return;
+      }
+      if (galleryOpen) {
+        setGalleryOpen(false);
+        return;
+      }
+      if (alleyFocus.want) {
+        alleyFocus.want = false;
+        alleyFocus.id = "";
+        return;
+      }
+      leaveAlley();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [inAlley, galleryOpen, wipFile]);
+
+  /* The arrow keys, held as a set and reduced to a direction the Rig polls.
+     Deliberately not React state: re-rendering the whole scene graph on a
+     keypress would cost far more than the walking does.
+
+     `blur` matters more than it looks — alt-tab away mid-stride and the
+     keyup never arrives, so without it you come back still walking. */
   useEffect(() => {
     if (!walking) {
-      walk.to = 0;
-      window.scrollTo(0, 0);
+      move.fwd = 0;
+      move.side = 0;
       return;
     }
-    const onScroll = () => {
-      const span = document.body.scrollHeight - window.innerHeight;
-      walk.to = span > 0 ? Math.min(1, Math.max(0, window.scrollY / span)) : 0;
+    const held = new Set<string>();
+    const apply = () => {
+      move.fwd = (held.has("ArrowUp") ? 1 : 0) - (held.has("ArrowDown") ? 1 : 0);
+      move.side = (held.has("ArrowRight") ? 1 : 0) - (held.has("ArrowLeft") ? 1 : 0);
     };
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    const down = (e: KeyboardEvent) => {
+      if (!WALK_KEYS.has(e.key)) return;
+      e.preventDefault(); // or the page tries to scroll behind the scene
+      held.add(e.key);
+      apply();
+    };
+    const up = (e: KeyboardEvent) => {
+      if (!WALK_KEYS.has(e.key)) return;
+      held.delete(e.key);
+      apply();
+    };
+    const stop = () => {
+      held.clear();
+      apply();
+    };
+    window.addEventListener("keydown", down);
+    window.addEventListener("keyup", up);
+    window.addEventListener("blur", stop);
+    return () => {
+      window.removeEventListener("keydown", down);
+      window.removeEventListener("keyup", up);
+      window.removeEventListener("blur", stop);
+      stop();
+    };
   }, [walking]);
 
   // coming back from a shop drops you at the near end again, on foot
   useEffect(() => {
-    walk.at = 0;
+    walk.z = WALK_FROM;
+    walk.x = 0;
     walk.dist = 0;
   }, []);
 
@@ -734,11 +993,9 @@ export default function StreetScene() {
 
   return (
     <div className="relative w-full bg-[#05070c]">
-      {/* The scene is pinned; the page behind it is what actually scrolls.
-          Its height is the length of the street in pixels, so one page of
-          scrolling is one walk from end to end. Only tall once the lights
-          are up — there's nowhere to walk to during the intro. */}
-      <div style={{ height: walking ? `calc(100svh + ${Math.round(WALK_PAGE_PX)}px)` : "100svh" }} />
+      {/* Exactly one screen tall. Nothing scrolls any more — the arrow keys
+          do the walking — so there's no tall page behind the scene. */}
+      <div style={{ height: "100svh" }} />
 
       <div className="fixed inset-0 h-[100svh] w-full">
       <Canvas
@@ -746,7 +1003,19 @@ export default function StreetScene() {
         gl={{ antialias: true, powerPreference: "high-performance", toneMappingExposure: 0.45 }}
         camera={{ position: [0, 6.5, -16], fov: 54, near: 0.1, far: 300 }}
       >
-        <Scene clock={clock} prompt={phase === "waiting"} onPrompt={start} fly={fly} onEnter={enterShop} />
+        <Scene
+          clock={clock}
+          prompt={phase === "waiting"}
+          onPrompt={start}
+          fly={fly}
+          onEnter={enterShop}
+          alley={alley}
+          sketches={sketches}
+          canEnterAlley={walking && !entering && !inAlley}
+          onEnterAlley={enterAlley}
+          onNearAlley={setNearAlley}
+          onWip={setWipFile}
+        />
       </Canvas>
 
       {alreadyLit && (
@@ -767,33 +1036,86 @@ export default function StreetScene() {
         transition={{ duration: entering ? 0.85 : 0, delay: entering ? 0.62 : 0, ease: "easeIn" }}
       />
 
-      {/* The greeting: centred while it types, gone once the lights run */}
-      <AnimatePresence>
-        {centred && (
-          <motion.div
-            key="greeting"
-            className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center px-6 sm:px-10"
-            exit={{ opacity: 0, y: -18, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] } }}
-          >
-            <h1 className="font-masthead text-[clamp(1.7rem,4.6vw,3.4rem)] font-normal leading-[1.15] tracking-[-0.03em] text-paper">
-              {GREETING.slice(0, typed)}
-              {typed < GREETING.length && (
-                <span
-                  className="ml-[0.04em] inline-block w-[0.045em] animate-pulse bg-paper align-baseline"
-                  style={{ height: "0.78em" }}
-                >
-                  &nbsp;
-                </span>
-              )}
-            </h1>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* How to get about. Under the entry wipe (z-40), and gone once a
           shop is chosen. Only offered unprompted on the first arrival —
           guideDue is set by start(), which a return visit never calls. */}
-      <StreetGuide offer={guideDue} available={walking && !entering} hidden={entering} />
+      {/* The nudge toward the alley: nothing at all until you're level with
+          the gap, then a small panel in the same blocky, bevelled language
+          as the guide. It says what to do without saying what's down there,
+          which is the whole trick — you still have to take the peek. */}
+      <AnimatePresence>
+        {nearAlley && walking && !entering && !inAlley && (
+          <motion.button
+            key="peek"
+            type="button"
+            onClick={enterAlley}
+            className="fixed bottom-16 left-1/2 z-[36] flex -translate-x-1/2 items-center gap-2.5 border-2 border-black bg-[#17120e]/95 px-4 py-2.5 font-masthead text-[0.95rem] leading-none text-paper transition-colors duration-200 hover:bg-glow-500/20 sm:bottom-20"
+            style={{
+              boxShadow:
+                "inset 2px 2px 0 rgba(255,236,200,0.14), inset -2px -2px 0 rgba(0,0,0,0.55), 0 18px 40px rgba(0,0,0,0.5)",
+            }}
+            initial={{ opacity: 0, y: 14, scale: 0.94 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.96 }}
+            transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <kbd
+              className="rounded-[3px] border border-b-[3px] border-black bg-paper/10 px-1.5 py-px font-mono text-[0.68rem] leading-[1.6]"
+              style={{ boxShadow: "inset 1px 1px 0 rgba(255,236,200,0.18)" }}
+            >
+              Click
+            </kbd>
+            Take a peek
+            <motion.span
+              aria-hidden
+              className="text-glow-400"
+              animate={{ opacity: [0.35, 1, 0.35] }}
+              transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+            >
+              →
+            </motion.span>
+          </motion.button>
+        )}
+      </AnimatePresence>
+
+      {/* The way back out of the alley — top left, the same corner every
+          room uses, so it's where a visitor already expects it. */}
+      <AnimatePresence>
+        {inAlley && (
+          <motion.button
+            key="leave-alley"
+            type="button"
+            onClick={leaveAlley}
+            className="fixed left-5 top-5 z-[36] border border-paper/20 bg-night-950/60 px-3 py-1.5 font-masthead text-[0.78rem] tracking-[0.02em] text-paper/70 backdrop-blur-md transition-colors duration-300 hover:text-paper sm:left-8 sm:top-8"
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+          >
+            ← Back to the street
+          </motion.button>
+        )}
+      </AnimatePresence>
+
+      <WipView
+        open={wipFile !== null}
+        onClose={() => setWipFile(null)}
+        sketch={wipFile ?? undefined}
+        reference={wipReference}
+      />
+
+      <AlleyGuide
+        open={galleryOpen}
+        onClose={() => setGalleryOpen(false)}
+        onOpen={() => setGalleryOpen(true)}
+        available={inAlley && !entering}
+      />
+
+      <StreetGuide
+        offer={guideDue}
+        available={walking && !entering && !inAlley}
+        hidden={entering || inAlley}
+      />
       </div>
     </div>
   );

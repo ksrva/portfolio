@@ -47,6 +47,12 @@
 html {
   background: var(--color-night-950);
   -webkit-tap-highlight-color: transparent;
+  /* A two-finger sideways swipe on a trackpad is the browser's back/forward
+     gesture. The street has nothing to scroll sideways, so the gesture went
+     straight to history and could drop you into /projects or /experience
+     without you asking — the shopfronts are meant to be the only way in.
+     Vertical is untouched, so the rooms still scroll normally. */
+  overscroll-behavior-x: none;
 }
 
 body {
@@ -56,6 +62,7 @@ body {
   font-synthesis-weight: none;
   text-rendering: optimizeLegibility;
   overflow-x: clip;
+  overscroll-behavior-x: none;
 }
 
 ::selection {
