@@ -45,8 +45,29 @@ function Entry({ job, i }: { job: Job; i: number }) {
         {job.year} · {job.span}
       </p>
 
+      {/* The org name doubles as the link out, rather than a button of its
+          own on every card: six extra buttons in a six-box grid reads as a
+          row of chrome, and the name is the thing you would click anyway.
+          Entries without a site fall back to plain text. */}
       <h3 className={`mt-2 font-masthead text-[1.1rem] leading-[1.3] tracking-[-0.02em] ${NAME}`}>
-        {job.org}
+        {job.href ? (
+          <a
+            href={job.href}
+            target="_blank"
+            rel="noreferrer noopener"
+            /* the arrow is decorative, so the name alone would be announced
+               with no hint it leaves the site */
+            aria-label={`${job.org} website`}
+            className="inline-flex items-baseline gap-1.5 transition-colors duration-200 hover:text-glow-400 focus-visible:text-glow-400"
+          >
+            {job.org}
+            <span aria-hidden className="text-[0.7em] text-glow-400">
+              ↗
+            </span>
+          </a>
+        ) : (
+          job.org
+        )}
       </h3>
 
       <p className={`mt-1 text-[0.8rem] leading-snug ${META}`}>
@@ -54,7 +75,14 @@ function Entry({ job, i }: { job: Job; i: number }) {
         {job.city && `, ${job.city}`}
       </p>
 
-      <p className={`mt-3 text-[0.9rem] leading-[1.6] ${BODY}`}>{job.highlight}</p>
+      {/* The note rides at the end of the same sentence rather than standing
+          as its own emphasised line. Set apart and bolded it read as a badge
+          pinned to the card; run on in the body weight it reads as part of
+          the account. */}
+      <p className={`mt-3 text-[0.9rem] leading-[1.6] ${BODY}`}>
+        {job.highlight}
+        {job.note && ` ${job.note}`}
+      </p>
     </motion.article>
   );
 }
@@ -163,6 +191,7 @@ export function ExperienceView() {
               <Entry key={job.org + job.period} job={job} i={i} />
             ))}
           </motion.div>
+
         </div>
       </div>
     </main>

@@ -1,42 +1,45 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="KS">
   <!--
-    No plate behind it any more: the icon is the letters and nothing else, so
-    it sits on whatever the browser puts behind a tab rather than carrying its
-    own little card.
+    Set as real type rather than hand-drawn paths.
 
-    That gives up the contrast the old rounded near-black rectangle used to
-    guarantee. An SVG favicon can carry its own stylesheet, so the ink follows
-    the viewer's theme instead — near-black on a light tab, paper cream on a
-    dark one. Chrome, Firefox and Safari all honour this; anything that does
-    not falls back to the near-black, which is the safer miss of the two.
+    The cursive version before this was a monoline I drew by hand, and it fell
+    apart at 16px: the strokes blurred into each other and the counters closed
+    up, which is the size a favicon is actually used at. A serif face is drawn
+    and hinted properly, so the letterforms survive the shrink in a way my
+    approximation of them did not.
 
-    Monoline rather than a true swelling script. A cursive face takes its
-    character from thick-and-thin strokes, which needs filled outlines, and at
-    16px the thin strokes vanish completely — the monogram turns to mush. One
-    even weight with round caps and round joins keeps the hand-drawn line and
-    still reads when it is shrunk to a tab.
+    font-family names a stack ending in the generic `serif`, which always
+    resolves, so this renders as a serif everywhere even if Georgia is absent.
+    The exact letterforms can differ between machines; for a two-letter
+    monogram that is an acceptable trade for type that is actually well drawn.
 
-    Ink spans x 16 to 52 and y 14 to 50; the group is nudged 2 left so the
-    stroke's own width centres the pair on 32 rather than the path ends.
+    Regular weight rather than bold. Bold was the safer choice for the 16px
+    tab icon — thin serif strokes and the hairlines of the serifs themselves
+    are the first thing to disappear when a mark is shrunk — so this trades a
+    little small-size robustness for the lighter, higher-contrast look.
+
+    Still no plate behind it. An SVG favicon carries its own stylesheet, so the
+    ink follows the viewer's theme: near-black on a light tab, paper cream on a
+    dark one, with the near-black as the fallback where that is not honoured.
+
+    Baseline at 46.5 rather than centred by dominant-baseline, which browsers
+    disagree about: at this size the cap height lands the pair on the middle.
   -->
   <style>
-    .ink {
-      fill: none;
-      stroke: #17120e;
-      stroke-width: 5.5;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-    }
+    .ink { fill: #17120e; }
     @media (prefers-color-scheme: dark) {
-      .ink { stroke: #f4ecdc; }
+      .ink { fill: #f4ecdc; }
     }
   </style>
 
-  <g class="ink" transform="translate(-2 0)">
-    <!-- K: a leaning spine, then the arm and leg as one unbroken pen stroke -->
-    <path d="M21 14c-3 9-5 18-5 26 0 3 0 6 1 10"/>
-    <path d="M36 19c-5 7-11 12-18 14 7 1 12 7 15 16"/>
-    <!-- S: one continuous curve, sharing the K's top and bottom -->
-    <path d="M52 22c-2-5-9-6-11-1-3 7 8 10 8 17 0 7-8 9-11 3"/>
-  </g>
+  <text
+    class="ink"
+    x="32"
+    y="46.5"
+    text-anchor="middle"
+    font-family="Georgia, 'Times New Roman', Times, serif"
+    font-size="42"
+    font-weight="400"
+    letter-spacing="-0.5"
+  >KS</text>
 </svg>

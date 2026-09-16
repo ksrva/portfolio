@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
+import { site } from "@/lib/content";
 
 /* The street has no controls on screen, so the first time it lights up it
    introduces itself and then says how to get about. Coming back from a shop,
@@ -45,6 +46,49 @@ const PHOTOS: { src: string; alt: string }[] = [
   { src: "/profile5.jpg", alt: "Kam on a wet road below a misty cliff in Hallstatt" },
   { src: "/profile7.jpg", alt: "Kam on an alpine ridge above a forested valley" },
   { src: "/profile8.jpg", alt: "Kam on sand dunes at sunset" },
+];
+
+/* Marks rather than words. Three labelled links in a row would compete with
+   the bio beside them; three small panels read as controls and stay quiet.
+
+   All drawn in currentColor at one size, so they take the paper colour like
+   the rest of the type instead of arriving in brand colours and punching
+   holes in the panel. Email is an envelope because email is not a brand. */
+function GitHubMark() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-[17px] w-[17px]" fill="currentColor" aria-hidden focusable="false">
+      <path d="M12 .5C5.37.5 0 5.87 0 12.5c0 5.3 3.44 9.8 8.21 11.39.6.11.82-.26.82-.58v-2.03c-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.33-1.76-1.33-1.76-1.09-.75.08-.73.08-.73 1.2.08 1.84 1.24 1.84 1.24 1.07 1.84 2.81 1.31 3.5 1 .11-.78.42-1.31.76-1.61-2.67-.3-5.47-1.34-5.47-5.96 0-1.32.47-2.39 1.24-3.23-.12-.31-.54-1.53.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 016 0c2.29-1.55 3.3-1.23 3.3-1.23.66 1.65.24 2.87.12 3.18.77.84 1.24 1.91 1.24 3.23 0 4.63-2.81 5.65-5.49 5.95.43.37.82 1.1.82 2.22v3.29c0 .32.21.7.83.58A12.01 12.01 0 0024 12.5C24 5.87 18.63.5 12 .5z" />
+    </svg>
+  );
+}
+
+/* Two shapes that do not overlap — the body below the fold, the flap above —
+   rather than a rectangle with cuts laid over it, which fills wrong. */
+function MailMark() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-[17px] w-[17px]" fill="currentColor" aria-hidden focusable="false">
+      <path d="M2 6.4V18a2 2 0 002 2h16a2 2 0 002-2V6.4l-9.42 6.6a1 1 0 01-1.16 0L2 6.4z" />
+      <path d="M20 4H4c-.54 0-1.04.21-1.4.56L12 11.2l9.4-6.64A1.99 1.99 0 0020 4z" />
+    </svg>
+  );
+}
+
+function LinkedInMark() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-[17px] w-[17px]" fill="currentColor" aria-hidden focusable="false">
+      <path d="M20.45 20.45h-3.56v-5.57c0-1.33-.02-3.04-1.85-3.04-1.85 0-2.14 1.45-2.14 2.94v5.67H9.35V9h3.41v1.56h.05c.48-.9 1.63-1.85 3.36-1.85 3.59 0 4.26 2.37 4.26 5.45v6.29zM5.34 7.43a2.07 2.07 0 110-4.14 2.07 2.07 0 010 4.14zM7.12 20.45H3.56V9h3.56v11.45zM22.22 0H1.77C.79 0 0 .77 0 1.72v20.56C0 23.23.79 24 1.77 24h20.45c.98 0 1.78-.77 1.78-1.72V1.72C24 .77 23.2 0 22.22 0z" />
+    </svg>
+  );
+}
+
+/* The three addresses already live in content.ts as site.socials, so they are
+   looked up by label here rather than retyped — one copy to keep right. */
+const social = (label: string) => site.socials.find((s) => s.label === label)?.href ?? "#";
+
+const CONTACTS = [
+  { label: "GitHub", href: social("GitHub"), Mark: GitHubMark },
+  { label: "Email", href: social("Email"), Mark: MailMark },
+  { label: "LinkedIn", href: social("LinkedIn"), Mark: LinkedInMark },
 ];
 
 const EASE = [0.22, 1, 0.36, 1] as const;
@@ -120,9 +164,14 @@ export function StreetGuide({
          there are depends on which panel you're on. */
       if (e.key === "Tab") {
         e.preventDefault();
-        const stops = Array.from(card.current?.querySelectorAll("button") ?? []);
+        /* anchors as well as buttons: the contact marks are links, and a
+           selector of "button" alone dropped them out of the tab order
+           entirely rather than merely ordering them oddly */
+        const stops = Array.from(
+          card.current?.querySelectorAll<HTMLElement>("button, a[href]") ?? [],
+        );
         if (!stops.length) return;
-        const i = stops.indexOf(document.activeElement as HTMLButtonElement);
+        const i = stops.indexOf(document.activeElement as HTMLElement);
         const dir = e.shiftKey ? -1 : 1;
         stops[(i + dir + stops.length) % stops.length]?.focus({ preventScroll: true });
       }
@@ -265,9 +314,42 @@ export function StreetGuide({
                           </button>
                         </div>
                       )}
+
+                      {/* Under the photo rather than trailing the bio: the
+                          marks belong with the picture as one block, and the
+                          text column is free to centre without dragging a row
+                          of icons along with it. Same 144px width as the
+                          carousel, so all three columns line up. */}
+                      <div className="mt-3 flex w-36 items-center justify-center gap-2">
+                        {CONTACTS.map(({ label, href, Mark }) => {
+                          const external = !href.startsWith("mailto:");
+                          return (
+                            <a
+                              key={label}
+                              href={href}
+                              /* a mailto: opens a mail client, so a new tab
+                                 would only leave a blank one behind */
+                              target={external ? "_blank" : undefined}
+                              rel={external ? "noreferrer noopener" : undefined}
+                              aria-label={label}
+                              title={label}
+                              className={`flex h-9 w-9 items-center justify-center border-2 border-black bg-paper/10 transition-colors duration-200 hover:bg-glow-500/25 focus-visible:bg-glow-500/25 active:translate-y-px ${NAME}`}
+                              style={{ boxShadow: BEVEL }}
+                            >
+                              <Mark />
+                            </a>
+                          );
+                        })}
+                      </div>
                     </div>
 
-                    <div className={`space-y-3 text-[0.9rem] leading-[1.6] ${BODY}`}>
+                    {/* sm:self-center sits the bio against the middle of the
+                        photo column rather than its top. Scoped to sm and up:
+                        stacked on a narrow screen there is no spare height to
+                        centre within, and align-self would only pull the
+                        column in horizontally. The text itself stays ranged
+                        left. */}
+                    <div className={`space-y-3 text-[0.9rem] leading-[1.6] sm:self-center ${BODY}`}>
                       <p>
                         Hi! I&rsquo;m <span className={NAME}>Kam</span>, welcome to my (WIP)
                         portfolio!
