@@ -358,7 +358,8 @@ export function StreetGuide({
                         Waterloo, graduating in 2028.
                       </p>
                       <p>
-                        In my free time I love running, Taekwondo, singing and sketching!
+                        In my free time I love running, Taekwondo and impromptu 2am jam
+                        sessions on pianos around campus!
                       </p>
                       <p className={NAME}>Take a look around!</p>
                     </div>

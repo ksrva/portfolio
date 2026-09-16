@@ -113,18 +113,15 @@ export function AlleyGuide({
 
               <div className={`mt-5 space-y-3 text-[0.9rem] leading-[1.6] ${BODY}`}>
                 <p>
-                  In my free time I&rsquo;ve been dabbling in architectural sketching. These are
-                  some of the better ones.
+                  I&rsquo;ve been dabbling in architectural sketching. These are some of the
+                  better ones.
                 </p>
-                <p>
-                  I especially like drawing buildings from trips, usually on the plane back
-                  home.
-                </p>
+                <p>I especially like drawing buildings from trips.</p>
                 <p>
                   The one I&rsquo;m working on at the moment is{" "}
                   <span className={NAME}>St.&nbsp;Stephen&rsquo;s Cathedral</span>{" "}
                   <span className={META}>(Stephansdom)</span> from my recent trip to
-                  Austria. Did not finish on the plane.
+                  Austria.
                 </p>
               </div>
 
