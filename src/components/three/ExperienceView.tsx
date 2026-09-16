@@ -9,15 +9,12 @@ import { RoomClient } from "@/components/three/RoomClient";
 
 const TITLE = "Experience";
 
-/* Co-op roles only — volunteer entries belong to a different list. The year
-   prints once per run of entries that share it and is blank on the rest, so
-   the margin reads as a ledger instead of repeating itself. */
-const ENTRIES: { job: Job; year: string | null }[] = work
-  .filter((job) => job.kind !== "volunteer")
-  .map((job, i, all) => ({
-    job,
-    year: i === 0 || all[i - 1].year !== job.year ? job.year : null,
-  }));
+/* Co-op roles only — volunteer entries belong to a different list.
+
+   Each card now carries its own year, so the old run-grouping is gone: it
+   printed a year once and blanked the repeats beneath it, which only reads
+   as a ledger in a single column. In a grid there are no runs to group. */
+const ENTRIES: readonly Job[] = work.filter((job) => job.kind !== "volunteer");
 
 /* Three text weights, and only three: the name, the sentence, and everything
    that is neither. A finer ramp than this stops reading as hierarchy. */
@@ -25,33 +22,39 @@ const NAME = "text-paper";
 const BODY = "text-paper/70";
 const META = "text-paper/45";
 
-function Entry({ job, year, i }: { job: Job; year: string | null; i: number }) {
+/* The same panel the street's cards and prompts are built from: light on the
+   top-left edge, shadow on the bottom-right, a hard black line round the lot.
+   The ledger used to be hairline rules on nothing, which read as a different
+   piece of software to the room it sits in. */
+const BEVEL = "inset 2px 2px 0 rgba(255,236,200,0.14), inset -2px -2px 0 rgba(0,0,0,0.55)";
+const PANEL = `${BEVEL}, 0 18px 40px rgba(0,0,0,0.5)`;
+
+function Entry({ job, i }: { job: Job; i: number }) {
   return (
     <motion.article
-      className="grid grid-cols-[1fr_auto] gap-x-5 border-t border-paper/10 py-8 sm:grid-cols-[4.5rem_1fr_auto] sm:gap-x-8"
+      className="flex flex-col border-2 border-black bg-[#17120e]/95 px-5 py-5"
+      style={{ boxShadow: PANEL }}
       initial={{ opacity: 0, y: 14 }}
       whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "0px 0px -12% 0px" }}
-      transition={{ duration: 0.5, delay: Math.min(i, 3) * 0.06, ease: [0.22, 1, 0.36, 1] }}
+      viewport={{ once: true, margin: "0px 0px -8% 0px" }}
+      transition={{ duration: 0.5, delay: Math.min(i, 5) * 0.05, ease: [0.22, 1, 0.36, 1] }}
     >
-      {/* the margin year, from sm up. `hidden` drops it out of the grid
-          entirely on mobile, so the row falls back to content + dates */}
-      <p className={`hidden text-[0.82rem] tabular-nums sm:block ${META}`}>{year}</p>
+      {/* year and months on one line, inside the box — the dates used to sit
+          in a margin and at the far right, which a grid has nowhere to put */}
+      <p className={`text-[0.78rem] tabular-nums ${META}`}>
+        {job.year} · {job.span}
+      </p>
 
-      <div>
-        {year && <p className={`mb-2 text-[0.78rem] tabular-nums sm:hidden ${META}`}>{year}</p>}
+      <h3 className={`mt-2 font-masthead text-[1.1rem] leading-[1.3] tracking-[-0.02em] ${NAME}`}>
+        {job.org}
+      </h3>
 
-        <h3 className={`font-masthead text-[1.18rem] leading-[1.3] tracking-[-0.02em] ${NAME}`}>{job.org}</h3>
+      <p className={`mt-1 text-[0.8rem] leading-snug ${META}`}>
+        {job.role}
+        {job.city && `, ${job.city}`}
+      </p>
 
-        <p className={`mt-1 text-[0.82rem] leading-snug ${META}`}>
-          {job.role}
-          {job.city && `, ${job.city}`}
-        </p>
-
-        <p className={`mt-4 max-w-[54ch] text-[0.95rem] leading-[1.65] ${BODY}`}>{job.highlight}</p>
-      </div>
-
-      <p className={`text-right text-[0.82rem] tabular-nums ${META}`}>{job.span}</p>
+      <p className={`mt-3 text-[0.9rem] leading-[1.6] ${BODY}`}>{job.highlight}</p>
     </motion.article>
   );
 }
@@ -134,7 +137,8 @@ export function ExperienceView() {
           )}
         </AnimatePresence>
 
-        <div className="relative mx-auto mt-[14vh] max-w-3xl">
+        {/* wider than the old single column: three boxes across needs the room */}
+        <div className="relative mx-auto mt-[14vh] max-w-6xl">
           {/* min-height reserves the line, so nothing jumps when the title
               starts typing */}
           <h1 className="min-h-[1.1em] font-masthead text-[clamp(1.9rem,5vw,3.4rem)] leading-[1.05] tracking-[-0.03em] text-paper">
@@ -150,13 +154,13 @@ export function ExperienceView() {
           </h1>
 
           <motion.div
-            className={`mt-14 ${phase === "cards" ? "pointer-events-auto" : ""}`}
+            className={`mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 ${phase === "cards" ? "pointer-events-auto" : ""}`}
             initial={{ opacity: 0 }}
             animate={{ opacity: phase === "cards" ? 1 : 0 }}
             transition={{ duration: 0.8 }}
           >
-            {ENTRIES.map(({ job, year }, i) => (
-              <Entry key={job.org + job.period} job={job} year={year} i={i} />
+            {ENTRIES.map((job, i) => (
+              <Entry key={job.org + job.period} job={job} i={i} />
             ))}
           </motion.div>
         </div>

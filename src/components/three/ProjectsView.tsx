@@ -25,12 +25,19 @@ const NAME = "text-paper";
 const BODY = "text-paper/70";
 const META = "text-paper/45";
 
+/* Same panel as the experience ledger and the street's cards. Nothing renders
+   it yet — the projects list is empty — but the two rooms are meant to read as
+   one place, so the first entry added here shouldn't arrive in the old style. */
+const BEVEL = "inset 2px 2px 0 rgba(255,236,200,0.14), inset -2px -2px 0 rgba(0,0,0,0.55)";
+const PANEL = `${BEVEL}, 0 18px 40px rgba(0,0,0,0.5)`;
+
 function Entry({ project, year, i }: { project: Project; year: string | null; i: number }) {
   const link = project.href ?? project.repo;
 
   return (
     <motion.article
-      className="grid grid-cols-[1fr_auto] gap-x-5 border-t border-paper/10 py-8 sm:grid-cols-[4.5rem_1fr_auto] sm:gap-x-8"
+      className="grid grid-cols-[1fr_auto] gap-x-5 border-2 border-black bg-[#17120e]/95 px-5 py-5 sm:grid-cols-[4.5rem_1fr_auto] sm:gap-x-8 sm:px-6 sm:py-6"
+      style={{ boxShadow: PANEL }}
       initial={{ opacity: 0, y: 14 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "0px 0px -12% 0px" }}
@@ -160,7 +167,7 @@ export function ProjectsView() {
           </h1>
 
           <motion.div
-            className={`mt-14 ${phase === "cards" ? "pointer-events-auto" : ""}`}
+            className={`mt-14 space-y-4 ${phase === "cards" ? "pointer-events-auto" : ""}`}
             initial={{ opacity: 0 }}
             animate={{ opacity: phase === "cards" ? 1 : 0 }}
             transition={{ duration: 0.8 }}

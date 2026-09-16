@@ -74,6 +74,20 @@ export type Job = {
 
 export const work: readonly Job[] = [
   {
+    org: "Northside Ventures",
+    city: "Toronto",
+    year: "2026",
+    span: "May–present",
+    role: "AI Product Engineer, Part-time",
+    period: "May 2026 — present",
+    location: "Toronto, ON",
+    highlight:
+      "Replaced a serial scraping agent with a batched Clay API pipeline, cutting a 50-founder screening batch from 35 minutes to one call.",
+    blurb:
+      "Replaced a serial LinkedIn scraping agent with a batched Clay API pipeline, raising throughput from one profile per 45 seconds to 100 profiles per request. Designed a query-time outreach ranking layer over the Affinity CRM that reconciles contact timestamps to surface overdue founders, replacing manual CRM searches with a continuously prioritised follow-up queue. Shipped an event-driven pipeline converting forwarded pitch decks into structured investment memo drafts through idempotent webhook ingestion, multimodal PDF processing and asynchronous cited research, reducing manual memo setup by about 85% to a single forwarded email. Built a stateful sourcing review queue with bulk founder actions, persistent review state and score overrides propagated back into Affinity, replacing a weekly email workflow and saving analysts one to two hours a week.",
+    stack: ["Clay API", "Affinity CRM", "Webhooks", "LLMs"],
+  },
+  {
     org: "Triple",
     city: "Toronto",
     year: "2026",
