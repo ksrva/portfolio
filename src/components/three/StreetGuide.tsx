@@ -25,7 +25,6 @@ const BEVEL = "inset 2px 2px 0 rgba(255,236,200,0.14), inset -2px -2px 0 rgba(0,
 
 const STEPS: { keys: string[]; text: string }[] = [
   { keys: ["↑", "↓"], text: "Walk down the street, and back again." },
-  { keys: ["←", "→"], text: "Step across the road." },
   { keys: ["Mouse"], text: "Turn and look, not everything is straight ahead :D" },
   { keys: ["Click"], text: "Step inside a storefront." },
   { keys: ["Click", "the lamp"], text: "Light up the room once you're in." },

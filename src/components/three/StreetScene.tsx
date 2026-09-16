@@ -557,9 +557,8 @@ const WALK_TO = Math.max(
   SKYLINE_Z + SKYLINE_CLEARANCE,
   LAST_DOOR_Z - WALK_PAST_LAST_DOOR,
 );
-/** World units per second, walking and stepping sideways. */
+/** World units per second. */
 const WALK_SPEED = 11;
-const STRAFE_SPEED = 7;
 /** How far the mouse turns your head, as a real yaw rather than a sideways
     offset on a distant point. It has to reach past 80°: the alley opens at
     a right angle to the street, and the old ±23° glance is precisely why
@@ -569,16 +568,20 @@ const MAX_YAW = 1.45; // ~83°
    buys nothing and costs the horizon: tilt it and the whole town leans. */
 /** How far ahead the look point is thrown. */
 const LOOK_DIST = 40;
-/** How far either side of the centre line you may step — the kerbs. */
-const STRAFE_LIMIT = STREET_HALF - PAVEMENT_W - 0.6;
 
-/** The arrow keys currently down, as a direction. Written by the page. */
-const move = { fwd: 0, side: 0 };
-const WALK_KEYS = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
+/** Which arrow keys are down, as a forward/back direction only. Written by
+    the page. Stepping sideways used to live here too, but crossing a street
+    with nothing close enough to parallax against read as almost no movement
+    at all, so it earned its keep in neither the code nor the instructions. */
+const move = { fwd: 0 };
+/** All four arrows are still captured, so left and right are swallowed rather
+    than handed back to the browser to scroll the page with — they simply map
+    to no movement now. */
+const ARROW_KEYS = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
 
 /** Where you're standing, and how far you've walked — the gait runs off
-    distance covered, so it keeps time whichever way you're moving. */
-const walk = { z: WALK_FROM, x: 0, dist: 0 };
+    distance covered, so it keeps time at any pace. */
+const walk = { z: WALK_FROM, dist: 0 };
 
 /** Scratch for the alley pose — allocated once, not per frame. */
 const ALLEY_AIM = new THREE.Vector3();
@@ -661,11 +664,9 @@ function Rig({
     let moved = 0;
     if (a.t < 0.5) {
       const z0 = walk.z;
-      const x0 = walk.x;
       // forward is −z, and the ends of the street are hard stops
       walk.z = Math.min(WALK_FROM, Math.max(WALK_TO, walk.z - move.fwd * WALK_SPEED * dt));
-      walk.x = Math.min(STRAFE_LIMIT, Math.max(-STRAFE_LIMIT, walk.x + move.side * STRAFE_SPEED * dt));
-      moved = Math.hypot(walk.z - z0, walk.x - x0);
+      moved = Math.abs(walk.z - z0);
       walk.dist += moved;
     }
 
@@ -678,7 +679,7 @@ function Rig({
 
     // the body follows the feet only; the mouse no longer drags you sideways
     pos.current.z += (walk.z - pos.current.z) * Math.min(1, dt * 6);
-    pos.current.x += (walk.x + sway - pos.current.x) * k;
+    pos.current.x += (sway - pos.current.x) * k;
     pos.current.y += (6.5 + bob - pos.current.y) * k;
 
     const turn = Math.min(1, dt * 3.2);
@@ -958,22 +959,20 @@ export default function StreetScene({ sketches }: { sketches: string[] }) {
   useEffect(() => {
     if (!walking) {
       move.fwd = 0;
-      move.side = 0;
       return;
     }
     const held = new Set<string>();
     const apply = () => {
       move.fwd = (held.has("ArrowUp") ? 1 : 0) - (held.has("ArrowDown") ? 1 : 0);
-      move.side = (held.has("ArrowRight") ? 1 : 0) - (held.has("ArrowLeft") ? 1 : 0);
     };
     const down = (e: KeyboardEvent) => {
-      if (!WALK_KEYS.has(e.key)) return;
+      if (!ARROW_KEYS.has(e.key)) return;
       e.preventDefault(); // or the page tries to scroll behind the scene
       held.add(e.key);
       apply();
     };
     const up = (e: KeyboardEvent) => {
-      if (!WALK_KEYS.has(e.key)) return;
+      if (!ARROW_KEYS.has(e.key)) return;
       held.delete(e.key);
       apply();
     };
@@ -995,7 +994,6 @@ export default function StreetScene({ sketches }: { sketches: string[] }) {
   // coming back from a shop drops you at the near end again, on foot
   useEffect(() => {
     walk.z = WALK_FROM;
-    walk.x = 0;
     walk.dist = 0;
   }, []);
 

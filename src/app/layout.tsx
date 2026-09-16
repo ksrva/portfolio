@@ -32,11 +32,16 @@ const mono = JetBrains_Mono({
   display: "swap",
 });
 
+/* Just the name. The title used to append a "Software · Data · Machine
+   Learning" strapline, which read as a job-board tagline in the one place a
+   title has no room for one: the browser tab, where it is truncated anyway.
+   The sub-pages build their own titles as plain strings, so they are
+   unaffected by this. */
 export const metadata: Metadata = {
-  title: `${site.fullName} — ${site.role}`,
+  title: site.fullName,
   description: site.tagline,
   openGraph: {
-    title: `${site.fullName} — ${site.role}`,
+    title: site.fullName,
     description: site.tagline,
     type: "website",
   },

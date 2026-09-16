@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
-import { projects, research, type Project, type Paper } from "@/lib/content";
+import { projects, type Project } from "@/lib/content";
 import { Arrival } from "@/components/three/Arrival";
 import { WorkshopClient } from "@/components/three/WorkshopClient";
 
@@ -127,59 +127,6 @@ function Entry({ project, i }: { project: Project; i: number }) {
           )}
         </a>
       )}
-    </motion.article>
-  );
-}
-
-/* Same panel as the project cards, so the three lists read as one room. Every
-   line is conditional: an entry with no programme prints nothing above the
-   title rather than leaving a gap. */
-function PaperEntry({ paper, i }: { paper: Paper; i: number }) {
-  const meta = paper.program;
-
-  return (
-    <motion.article
-      className="flex flex-col border-2 border-black bg-[#17120e]/95 px-5 py-5"
-      style={{ boxShadow: PANEL }}
-      initial={{ opacity: 0, y: 14 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "0px 0px -8% 0px" }}
-      transition={{ duration: 0.5, delay: Math.min(i, 5) * 0.05, ease: [0.22, 1, 0.36, 1] }}
-    >
-      {meta && <p className={`text-[0.78rem] ${META}`}>{meta}</p>}
-
-      <h3
-        className={`font-masthead text-[1.1rem] leading-[1.3] tracking-[-0.02em] ${NAME} ${meta ? "mt-2" : ""}`}
-      >
-        {paper.title}
-      </h3>
-
-      {/* the link sits on the org, not the title: both URLs go to the group's
-          own site rather than to the paper, and a linked title would promise
-          the reader the paper itself */}
-      <p className={`mt-1 text-[0.8rem] leading-snug ${META}`}>
-        {paper.href ? (
-          <a
-            href={paper.href}
-            target="_blank"
-            rel="noreferrer noopener"
-            aria-label={`${paper.org} website`}
-            className="inline-flex items-baseline gap-1 transition-colors duration-200 hover:text-glow-400 focus-visible:text-glow-400"
-          >
-            {paper.org}
-            <span aria-hidden className="text-[0.85em] text-glow-400">
-              ↗
-            </span>
-          </a>
-        ) : (
-          paper.org
-        )}
-        {paper.role && `, ${paper.role}`}
-      </p>
-
-      {paper.blurb && <p className={`mt-3 text-[0.9rem] leading-[1.6] ${BODY}`}>{paper.blurb}</p>}
-
-      {paper.status && <p className={`mt-3 text-[0.78rem] italic ${META}`}>{paper.status}</p>}
     </motion.article>
   );
 }
@@ -331,35 +278,6 @@ export function ProjectsView() {
             </motion.div>
           )}
 
-          {/* Volunteer and research, last of the three lists. A paper and a
-              reading programme are a different kind of thing to a shipped
-              project, so they sit apart rather than mixed into either grid.
-              Two across rather than three — the titles are long. The block
-              disappears entirely if the list is empty. */}
-          {research.length > 0 && (
-            <motion.div
-              className={`mt-16 ${phase === "cards" ? "pointer-events-auto" : ""}`}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: phase === "cards" ? 1 : 0 }}
-              /* staggered behind the older grid, so the room fills in reading
-                 order rather than all three sections arriving together */
-              transition={{ duration: 0.8, delay: 0.3 }}
-            >
-              <p className={`font-mono text-[0.62rem] uppercase tracking-[0.28em] ${META}`}>
-                Volunteer / Research
-              </p>
-              <div
-                aria-hidden
-                className="mt-3 h-[2px] w-full bg-black/60 shadow-[0_1px_0_rgba(255,236,200,0.08)]"
-              />
-
-              <div className="mt-6 grid gap-4 sm:grid-cols-2">
-                {research.map((paper, i) => (
-                  <PaperEntry key={paper.title} paper={paper} i={i} />
-                ))}
-              </div>
-            </motion.div>
-          )}
         </div>
       </div>
     </main>

@@ -9,7 +9,6 @@
 export const site = {
   name: "Kam",
   fullName: "Kamakshi Sarvananthan",
-  role: "Software · Data · Machine Learning",
   location: "Waterloo, Ontario",
   email: "k3sarvan@uwaterloo.ca",
   tagline: "I build systems that turn messy data into something you can trust.",
@@ -88,7 +87,7 @@ export const work: readonly Job[] = [
     role: "AI Product Engineer, Part-time",
     period: "May 2026 — present",
     location: "Toronto, ON",
-    highlight: "Building Leif! In-house AI Analyst.",
+    highlight: "Building Leif, an in-house AI analyst.",
     blurb:
       "Replaced a serial LinkedIn scraping agent with a batched Clay API pipeline, raising throughput from one profile per 45 seconds to 100 profiles per request. Designed a query-time outreach ranking layer over the Affinity CRM that reconciles contact timestamps to surface overdue founders, replacing manual CRM searches with a continuously prioritised follow-up queue. Shipped an event-driven pipeline converting forwarded pitch decks into structured investment memo drafts through idempotent webhook ingestion, multimodal PDF processing and asynchronous cited research, reducing manual memo setup by about 85% to a single forwarded email. Built a stateful sourcing review queue with bulk founder actions, persistent review state and score overrides propagated back into Affinity, replacing a weekly email workflow and saving analysts one to two hours a week.",
     stack: ["Clay API", "Affinity CRM", "Webhooks", "LLMs"],
@@ -164,47 +163,6 @@ export const work: readonly Job[] = [
     blurb:
       "Led a refactor of a legacy database schema and the SQL behind compliance reporting, improving query performance 15%. Built an inventory-forecasting dashboard that cut over-allocation 20% and extended forecast visibility from one week to over three months.",
     stack: ["Python", "SQL", "Power BI", "Selenium"],
-  },
-] as const;
-
-/** Research — papers and reading programs. Kept as its own list rather than
-    another `kind` on Job, because these have no span, no city and no employer;
-    forcing them into the co-op shape would mean leaving half of it blank. */
-export type Paper = {
-  title: string;
-  /** Who it was done with. */
-  org: string;
-  /** The part played in it, where that is worth naming. */
-  role?: string;
-  /** The programme it sat under, where there was one. */
-  program?: string;
-  /** Where it stands, not what it claims. */
-  status?: string;
-  /** One line on what it actually does. Optional — better empty than filled
-      with a description inferred from the title. */
-  blurb?: string;
-  /** The group's or programme's own site. This hangs off the org name rather
-      than the title on purpose: neither link points at the paper itself, and
-      a linked title would read as "click to read it". */
-  href?: string;
-};
-
-export const research: readonly Paper[] = [
-  {
-    /* Titled from the paper itself, not its filename — the PDF arrived as
-       "On_the_Volatility_Prediction_of_the_HAR_RV_Model", which is not what
-       the paper is called. Five authors, Waterloo, dated 15 March 2025. */
-    title: "Using Prime Modulo Classes to Improve the HAR-RV Model",
-    org: "WatStreet",
-    role: "Project Lead",
-    status: "Pending journal submission",
-    href: "https://watstreet.netlify.app/",
-  },
-  {
-    title: "Evaluating the Efficiency and Security of Blockchain Consensus Models",
-    org: "Women in Math",
-    program: "Directed Reading Program",
-    href: "https://uwaterloo.ca/women-in-mathematics/past-drp-projects",
   },
 ] as const;
 
@@ -301,7 +259,7 @@ export const projects: readonly Project[] = [
        are Canadian large-caps. Claiming the opposite of what the code does is
        the one thing a portfolio really cannot afford. */
     blurb:
-      "Builds a deliberately high-risk, anti-diversified ten-stock portfolio. Team assignment.",
+      "Builds a deliberately high-risk, anti-diversified ten-stock portfolio.",
     stack: ["Python", "pandas", "NumPy", "yfinance"],
     repo: "https://github.com/ksrva/risky-portfolio-generator",
     older: true,
