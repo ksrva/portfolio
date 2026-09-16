@@ -183,6 +183,12 @@ export type Project = {
   stack: readonly string[];
   href?: string;
   repo?: string;
+  /** a screenshot for the card, relative to /projects */
+  image?: string;
+  /** shown under "Older projects" rather than in the main grid */
+  older?: boolean;
+  /** a prize or placing, set apart from the blurb so it can carry weight */
+  award?: string;
 };
 
 /* Empty on purpose. The entries that were here were invented — placeholder
@@ -192,7 +198,63 @@ export type Project = {
 
    Adding one back is just an entry here: the room renders the ledger again
    the moment this array isn't empty. */
-export const projects: readonly Project[] = [] as const;
+export const projects: readonly Project[] = [
+  {
+    title: "memo",
+    year: "2026",
+    kind: "Chrome extension",
+    blurb: "A way to consolidate and search your annotations.",
+    stack: ["TypeScript", "Chrome MV3", "Python", "FastAPI", "SQLite", "sqlite-vec"],
+    repo: "https://github.com/ksrva/memo",
+    image: "memo.jpg",
+  },
+  {
+    title: "chords",
+    year: "2026",
+    kind: "Audio analysis",
+    blurb:
+      "Chord and key detection built from first principles, with transposition to the keys you sing best.",
+    stack: ["Python", "NumPy"],
+    repo: "https://github.com/ksrva/chords",
+    image: "chords.jpg",
+  },
+  {
+    title: "Camp-Us",
+    year: "2023",
+    kind: "Hackathon",
+    /* Describes the prototype that exists, not the pitch. The repo is four
+       Android screens and a flow — campus, start, destination, notify — with
+       no location, notification or network code behind them. Calling it a
+       working safety app would send anyone who clicks through to a login
+       with a hardcoded password and an empty results screen. */
+    blurb:
+      "An Android prototype for getting home safely after dark: pick your campus, where you're leaving from and where you're headed, and find someone walking the same way.",
+    award: "Won Best UI/UX at TechNova 2023.",
+    stack: ["Java", "Android Studio", "XML", "Figma"],
+    /* Devpost rather than the repo: it carries the source link and the Figma
+       file together, which is more than either link gives on its own. */
+    href: "https://devpost.com/software/camp-us-jaqs50",
+    older: true,
+  },
+  {
+    title: "Study Buddy",
+    year: "2024",
+    kind: "Hackathon",
+    /* Describes what the repo actually implements. chatbot.py is a real
+       delegation pattern: GPT-4o answers conversationally, but is instructed
+       to emit a Wolfram query when a question is computational and hand off.
+       The Flask app exposes two endpoints behind that, and the Next.js side
+       has genuine chat, practice and questions pages. */
+    blurb:
+      "A study chatbot that keeps the conversation with GPT-4o but hands calculation off to Wolfram Alpha, and turns uploaded material into flashcards.",
+    stack: ["TypeScript", "Next.js", "Python", "Flask", "OpenAI", "Wolfram Alpha"],
+    /* Devpost rather than the repo, as with Camp-Us: it carries the source and
+       the Figma file together, and the repo itself lives under a teammate's
+       account rather than mine. */
+    href: "https://devpost.com/software/study-buddy-75yde3",
+    older: true,
+  },
+] as const;
 
 /** Writing / notes. Delete the section in page.tsx if you don't want it. */
 export type Post = {

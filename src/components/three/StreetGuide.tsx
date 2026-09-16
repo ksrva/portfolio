@@ -30,6 +30,23 @@ const STEPS: { keys: string[]; text: string }[] = [
   { keys: ["Click", "the lamp"], text: "Light up the room once you're in." },
 ];
 
+/* The photos, in the order they're paged through. Every file is cut to the
+   same 3:5 so the frame never changes height between slides — a carousel
+   whose box resizes as you page reads as a bug. Adding one is a line here. */
+/* Order here is the order they're paged through, and it has nothing to do
+   with the filenames — those are just the order the photos arrived. The close
+   portrait leads because a bio panel wants a face before it wants a view. */
+const PHOTOS: { src: string; alt: string }[] = [
+  { src: "/profile6.jpg", alt: "Kam at an outdoor table in the evening" },
+  { src: "/profile.jpg", alt: "Kam on a marble staircase beside a stone lion" },
+  { src: "/profile2.jpg", alt: "Kam on a mountain trail below a glacier" },
+  { src: "/profile3.jpg", alt: "Kam among Inca terrace ruins above a valley" },
+  { src: "/profile4.jpg", alt: "Kam on the Graben in Vienna at night, by the Plague Column" },
+  { src: "/profile5.jpg", alt: "Kam on a wet road below a misty cliff in Hallstatt" },
+  { src: "/profile7.jpg", alt: "Kam on an alpine ridge above a forested valley" },
+  { src: "/profile8.jpg", alt: "Kam on sand dunes at sunset" },
+];
+
 const EASE = [0.22, 1, 0.36, 1] as const;
 
 const PANELS = 2;
@@ -51,6 +68,7 @@ export function StreetGuide({
 }) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(0);
+  const [slide, setSlide] = useState(0);
   const offered = useRef(false);
   const card = useRef<HTMLDivElement>(null);
   const nextBtn = useRef<HTMLButtonElement>(null);
@@ -169,32 +187,84 @@ export function StreetGuide({
                     exit={{ opacity: 0, x: -12 }}
                     transition={{ duration: 0.25, ease: EASE }}
                   >
-                    {/* A box rather than a circle: a circle throws away the
-                        corners, and at this size that was most of the photo.
-                        No fixed height and no object-fit, so the frame simply
-                        takes the picture's own proportions. Centred when the
-                        card stacks on a narrow screen, left-aligned beside the
-                        text once there's room. */}
-                    {/* The frame takes the row's full height (a flex row
-                        stretches its children to the tallest, which here is
-                        the text), and the picture covers it rather than
-                        sitting at its natural size and leaving dead space
-                        under itself.
+                    {/* The photo carousel. A box rather than a circle: a
+                        circle throws away the corners, and at this size that
+                        was most of the picture. Centred when the card stacks
+                        on a narrow screen, left-aligned beside the text once
+                        there's room.
 
-                        min-h matters for the stacked case: once the card
-                        turns into a column, stretch applies to width instead
-                        of height, so without it the frame would have no
-                        height and the absolute image would vanish. */}
-                    <div
-                      className="relative mx-auto min-h-[12rem] w-36 shrink-0 overflow-hidden border-2 border-black sm:mx-0"
-                      style={{ boxShadow: BEVEL }}
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src="/profile.jpg"
-                        alt="Kam"
-                        className="absolute inset-0 h-full w-full object-cover"
-                      />
+                        A pinned 3:5 with object-cover rather than the old
+                        h-auto. Every file is already cut to 3:5, so nothing is
+                        actually trimmed — but fixing the ratio means the frame
+                        can't change height as the slide changes, which is what
+                        made the single-photo version jump.
+
+                        No arrow-key binding on purpose: the street listens for
+                        those on window to walk, so paging with them would move
+                        you down the road while the panel is open. */}
+                    <div className="mx-auto shrink-0 self-start sm:mx-0">
+                      <div
+                        className="relative aspect-[4/5] w-36 overflow-hidden border-2 border-black bg-[#0d0a07]"
+                        style={{ boxShadow: BEVEL }}
+                      >
+                        <AnimatePresence mode="wait" initial={false}>
+                          {/* motion.img rather than a plain img, which also
+                              sidesteps the no-img-element directive that keeps
+                              getting orphaned when this block reflows */}
+                          <motion.img
+                            key={PHOTOS[slide].src}
+                            src={PHOTOS[slide].src}
+                            alt={PHOTOS[slide].alt}
+                            className="absolute inset-0 h-full w-full object-cover"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.28, ease: EASE }}
+                          />
+                        </AnimatePresence>
+                      </div>
+
+                      {PHOTOS.length > 1 && (
+                        <div className="mt-2 flex w-36 items-center justify-between">
+                          <button
+                            type="button"
+                            onClick={() => setSlide((s) => (s - 1 + PHOTOS.length) % PHOTOS.length)}
+                            aria-label="Previous photo"
+                            className={`flex h-6 w-6 items-center justify-center border-2 border-black bg-paper/10 text-[0.8rem] leading-none transition-colors duration-200 hover:bg-glow-500/25 focus-visible:bg-glow-500/25 active:translate-y-px ${NAME}`}
+                            style={{ boxShadow: BEVEL }}
+                          >
+                            ‹
+                          </button>
+
+                          {/* gap-1 rather than gap-1.5: at eight slides the
+                              dots plus both arrows only just clear the 144px
+                              column, and the tighter gap keeps the headroom */}
+                          <div className="flex items-center gap-1">
+                            {PHOTOS.map((p, i) => (
+                              <button
+                                key={p.src}
+                                type="button"
+                                onClick={() => setSlide(i)}
+                                aria-label={`Photo ${i + 1} of ${PHOTOS.length}`}
+                                aria-current={i === slide}
+                                className={`h-1.5 w-1.5 border border-black transition-colors duration-200 ${
+                                  i === slide ? "bg-glow-400" : "bg-paper/25 hover:bg-paper/50"
+                                }`}
+                              />
+                            ))}
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => setSlide((s) => (s + 1) % PHOTOS.length)}
+                            aria-label="Next photo"
+                            className={`flex h-6 w-6 items-center justify-center border-2 border-black bg-paper/10 text-[0.8rem] leading-none transition-colors duration-200 hover:bg-glow-500/25 focus-visible:bg-glow-500/25 active:translate-y-px ${NAME}`}
+                            style={{ boxShadow: BEVEL }}
+                          >
+                            ›
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     <div className={`space-y-3 text-[0.9rem] leading-[1.6] ${BODY}`}>

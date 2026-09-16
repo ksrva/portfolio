@@ -1,28 +1,42 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="KS">
   <!--
-    The site's own palette: the panels' near-black ground, the paper cream of
-    the type, and the hard black edge every card and prompt carries.
+    No plate behind it any more: the icon is the letters and nothing else, so
+    it sits on whatever the browser puts behind a tab rather than carrying its
+    own little card.
 
-    Drawn for 16px first. A period between the letters vanishes at that size
-    and only widens the gap, so it's KS set tight.
+    That gives up the contrast the old rounded near-black rectangle used to
+    guarantee. An SVG favicon can carry its own stylesheet, so the ink follows
+    the viewer's theme instead — near-black on a light tab, paper cream on a
+    dark one. Chrome, Firefox and Safari all honour this; anything that does
+    not falls back to the near-black, which is the safer miss of the two.
 
-    Both letters share one cap height, 18 to 46, and the K is symmetric about
-    the vertical centre — its arms meet the stem at y=32, so the counter above
-    and below match. The S is pushed to the same extents with deeper control
-    points, since a round letter drawn to the same box reads smaller than a
-    straight-sided one.
+    Monoline rather than a true swelling script. A cursive face takes its
+    character from thick-and-thin strokes, which needs filled outlines, and at
+    16px the thin strokes vanish completely — the monogram turns to mush. One
+    even weight with round caps and round joins keeps the hand-drawn line and
+    still reads when it is shrunk to a tab.
 
-    Ink spans x 14 to 50, which centres the pair on 32.
+    Ink spans x 16 to 52 and y 14 to 50; the group is nudged 2 left so the
+    stroke's own width centres the pair on 32 rather than the path ends.
   -->
-  <rect width="64" height="64" rx="12" fill="#17120e"/>
-  <rect x="2" y="2" width="60" height="60" rx="10.5" fill="none" stroke="#000" stroke-width="4"/>
-  <rect x="5.5" y="5.5" width="53" height="53" rx="8.5" fill="none" stroke="#f4ecdc" stroke-opacity="0.14" stroke-width="1.5"/>
+  <style>
+    .ink {
+      fill: none;
+      stroke: #17120e;
+      stroke-width: 5.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    @media (prefers-color-scheme: dark) {
+      .ink { stroke: #f4ecdc; }
+    }
+  </style>
 
-  <g fill="none" stroke="#f4ecdc" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
-    <!-- K: stem, then both arms as one stroke meeting it at the midline -->
-    <path d="M17 18v28"/>
-    <path d="M28.5 18 17.5 32 28.5 46"/>
-    <!-- S: one continuous curve, same top and bottom as the K -->
-    <path d="M46.6 24c0-7-10.2-8.5-10.2.8 0 7 10.2 7.6 10.2 14 0 8.5-9.8 9.5-10.2 2.4"/>
+  <g class="ink" transform="translate(-2 0)">
+    <!-- K: a leaning spine, then the arm and leg as one unbroken pen stroke -->
+    <path d="M21 14c-3 9-5 18-5 26 0 3 0 6 1 10"/>
+    <path d="M36 19c-5 7-11 12-18 14 7 1 12 7 15 16"/>
+    <!-- S: one continuous curve, sharing the K's top and bottom -->
+    <path d="M52 22c-2-5-9-6-11-1-3 7 8 10 8 17 0 7-8 9-11 3"/>
   </g>
 </svg>
